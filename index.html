@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0f1420">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>AppRutina — Entrená a tu ritmo</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <h1>🏃‍♂️ AppRutina</h1>
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="entrenar">Entrenar</button>
+    <button class="tab-btn" data-tab="historial">Historial</button>
+    <button class="tab-btn" data-tab="stats">Estadísticas</button>
+  </nav>
+</header>
+
+<main>
+
+<!-- ENTRENAR -->
+<section id="tab-entrenar" class="tab-panel active">
+
+  <div class="card">
+    <h2>1. ¿Qué día entrenás?</h2>
+    <div class="weekday-picker" id="weekdayPicker"></div>
+  </div>
+
+  <div class="card">
+    <h2>2. Elegí los grupos musculares de hoy</h2>
+    <div class="priority-box">
+      <label class="chip priority" id="chipRunning">
+        <input type="checkbox" value="RUNNING" checked>
+        <span>🦵 Articulaciones / Running <small>(prioridad)</small></span>
+        <span class="chip-pct" id="chipRunningPct"></span>
+        <div class="chip-bar"><div id="chipRunningBar"></div></div>
+      </label>
+    </div>
+    <div class="group-grid" id="groupGrid"></div>
+    <button id="btnGenerar" class="btn btn-primary">Generar rutina de hoy</button>
+  </div>
+
+  <div class="card" id="workoutCard" hidden>
+    <h2>3. Marcá lo que vas completando</h2>
+    <div class="progress-sticky">
+      <div class="progress-wrap">
+        <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+        <span id="progressLabel">0 / 0</span>
+      </div>
+    </div>
+    <div id="workoutContainer"></div>
+    <div class="action-row">
+      <button id="btnGuardar" class="btn btn-success">Guardar entrenamiento</button>
+      <button id="btnCancelar" class="btn btn-ghost">Cancelar</button>
+    </div>
+  </div>
+
+</section>
+
+<!-- HISTORIAL -->
+<section id="tab-historial" class="tab-panel">
+  <div class="card">
+    <h2>Historial de entrenamientos</h2>
+    <div id="historyList" class="history-list"></div>
+  </div>
+  <div class="card">
+    <h2>💾 Respaldo de datos</h2>
+    <p class="hint">Tus datos viven en este dispositivo. Exportá un respaldo cada tanto para no perder el historial, o para pasarlo a otro teléfono.</p>
+    <div class="action-row">
+      <button id="btnExport" class="btn btn-primary">⬇ Exportar respaldo</button>
+      <button id="btnImport" class="btn btn-ghost">⬆ Importar</button>
+    </div>
+    <input type="file" id="importFile" accept=".json" hidden>
+  </div>
+</section>
+
+<!-- STATS -->
+<section id="tab-stats" class="tab-panel">
+  <div class="card">
+    <h2>Distribución de entrenamiento por músculo</h2>
+    <div id="statsBars" class="stats-bars"></div>
+  </div>
+  <div class="card">
+    <h2>📅 Promedio mensual por músculo</h2>
+    <p class="hint">Porcentaje del volumen de cada mes dedicado a cada grupo. Si un músculo domina mes a mes, estás desbalanceando.</p>
+    <div id="monthlyStats"></div>
+  </div>
+  <div class="card highlight-card">
+    <h2>🦵 Fortalecimiento articular (base para running)</h2>
+    <div class="progress-wrap big">
+      <div class="progress-bar"><div id="runningFill" class="progress-fill running"></div></div>
+      <span id="runningLabel">0%</span>
+    </div>
+    <p id="runningMsg" class="hint"></p>
+    <div id="runningAreaBars" class="stats-bars"></div>
+  </div>
+</section>
+
+</main>
+
+<!-- FICHA DE EJERCICIO -->
+<div id="exModal" class="modal" hidden>
+  <div class="modal-box">
+    <button class="modal-close" id="modalClose">✕</button>
+    <h3 id="modalTitle"></h3>
+    <p id="modalDetail" class="hint"></p>
+    <div id="modalMuscleLabel" class="muscle-label"></div>
+    <div id="modalBody" class="body-diagram"></div>
+    <a id="modalVideo" class="btn btn-primary video-btn" target="_blank" rel="noopener">▶ Ver técnica en video</a>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
