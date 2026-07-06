@@ -1,22 +1,59 @@
-// Animaciones de ejecución: figuras de palitos en 2 poses (inicio ⇄ fin)
+// Animaciones de ejecución: personaje con volumen en 2 poses (inicio ⇄ fin)
 // Cada patrón cubre una familia de ejercicios del Excel.
 
-const GEAR = (x, y) => `<circle cx="${x}" cy="${y}" r="4.5" fill="var(--anim-gear,#4f8cff)" stroke="none"/>`;
+// paleta del personaje (contraste probado sobre panel #1e2536)
+const SKIN = '#e8b48b', SKIN_FAR = '#c2926c';
+const HAIR = '#3a2c22';
+const SHIRT = '#4f8cff', SHIRT_FAR = '#3568bd';
+const PANTS = '#5d6c96', PANTS_FAR = '#454f70';
+const SHOE = '#9aa3ba', SHOE_FAR = '#6e768c';
+const GEAR_FILL = '#ff8a3d', GEAR_RIM = '#c2661f';
+
+const GEAR = (x, y) => `<circle cx="${x}" cy="${y}" r="5" fill="${GEAR_FILL}" stroke="${GEAR_RIM}" stroke-width="1.5"/>`;
 
 function _limb(a, b) {
   return `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}"/>`;
 }
 
+// segmento con volumen: trazo grueso con puntas redondeadas = "cápsula"
+function _cap(a, b, w, color) {
+  return `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${color}" stroke-width="${w}" stroke-linecap="round"/>`;
+}
+
+function _shoe(foot, color) {
+  return _cap(foot, [foot[0] + 7, foot[1] + 1], 5.5, color);
+}
+
+function _hand(h, color) {
+  return `<circle cx="${h[0]}" cy="${h[1]}" r="3.4" fill="${color}" stroke="none"/>`;
+}
+
 function _fig(p) {
-  let s = '';
-  if (p.elbow2) s += `<g opacity="0.45">${_limb(p.neck2 || p.neck, p.elbow2)}${_limb(p.elbow2, p.hand2)}</g>`;
-  if (p.knee2) s += `<g opacity="0.45">${_limb(p.hip2 || p.hip, p.knee2)}${_limb(p.knee2, p.foot2)}</g>`;
-  s += _limb(p.neck, p.hip);
-  if (p.elbow) s += _limb(p.neck, p.elbow) + _limb(p.elbow, p.hand);
-  if (p.knee) s += _limb(p.hip, p.knee) + _limb(p.knee, p.foot);
-  s += `<circle cx="${p.head[0]}" cy="${p.head[1]}" r="7" fill="none"/>`;
+  let s = '<g fill="none">';
+  // extremidades lejanas primero (tonos más oscuros = profundidad)
+  if (p.knee2) {
+    s += _cap(p.hip2 || p.hip, p.knee2, 8, PANTS_FAR) + _cap(p.knee2, p.foot2, 7, PANTS_FAR) + _shoe(p.foot2, SHOE_FAR);
+  }
+  if (p.elbow2) {
+    s += _cap(p.neck2 || p.neck, p.elbow2, 6.5, SHIRT_FAR) + _cap(p.elbow2, p.hand2, 5.5, SKIN_FAR) + _hand(p.hand2, SKIN_FAR);
+  }
+  // pierna cercana
+  if (p.knee) {
+    s += _cap(p.hip, p.knee, 9, PANTS) + _cap(p.knee, p.foot, 8, PANTS) + _shoe(p.foot, SHOE);
+  }
+  // torso (remera): cápsula ancha del cuello a la cadera
+  s += _cap(p.neck, p.hip, 13, SHIRT);
+  // brazo cercano: brazo con remera, antebrazo y mano de piel
+  if (p.elbow) {
+    s += _cap(p.neck, p.elbow, 7, SHIRT) + _cap(p.elbow, p.hand, 6, SKIN) + _hand(p.hand, SKIN);
+  }
+  // cabeza con pelo
+  const hx = p.head[0], hy = p.head[1];
+  s += `<circle cx="${hx}" cy="${hy}" r="7.5" fill="${SKIN}" stroke="none"/>`;
+  s += `<path d="M ${hx - 7.4} ${hy - 1.2} A 7.4 7.4 0 0 1 ${hx + 7.4} ${hy - 1.2} Z" fill="${HAIR}" stroke="none"/>`;
   if (p.gear) s += p.gear.map(g => GEAR(g[0], g[1])).join('');
-  if (p.extra) s += p.extra;
+  if (p.extra) s += `<g stroke="#aab3c7" stroke-width="4" stroke-linecap="round" fill="none">${p.extra}</g>`;
+  s += '</g>';
   return s;
 }
 
@@ -24,7 +61,7 @@ function animSVG(def) {
   return `<svg viewBox="0 0 200 140" class="exec-anim" xmlns="http://www.w3.org/2000/svg">
     <line x1="8" y1="127" x2="192" y2="127" stroke="#2a3245" stroke-width="2"/>
     <g stroke="#3d4763" stroke-width="3" stroke-linecap="round" fill="none">${def.props || ''}</g>
-    <g stroke="#e8ecf4" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <g>
       <g>${_fig(def.A)}
         <animate attributeName="opacity" values="1;1;0;0;1" keyTimes="0;0.42;0.5;0.92;1" dur="2.6s" repeatCount="indefinite"/></g>
       <g opacity="0">${_fig(def.B)}
