@@ -615,6 +615,20 @@ function showExerciseInfo(item, block) {
   }
   document.getElementById('modalTitle').textContent = item.name;
   document.getElementById('modalDetail').textContent = item.detail;
+
+  // execution preview: animated stick figure + technique cues
+  const pattern = patternFor(item.name, block.key);
+  const execEl = document.getElementById('modalExec');
+  if (pattern && ANIMS[pattern]) {
+    const def = ANIMS[pattern];
+    execEl.innerHTML =
+      '<div class="exec-title">Cómo se ejecuta</div>' +
+      animSVG(def) +
+      '<ul class="cues">' + def.cues.map(c => `<li>${c}</li>`).join('') + '</ul>';
+  } else {
+    execEl.innerHTML = '';
+  }
+
   document.getElementById('modalMuscleLabel').textContent = muscleLabel;
   document.getElementById('modalBody').innerHTML = regions.length
     ? bodySVG(regions)

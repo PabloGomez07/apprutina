@@ -375,6 +375,31 @@ main { padding: 16px 20px 60px; max-width: 760px; margin: 0 auto; }
 
 .body-diagram svg { width: 100%; max-height: 300px; display: block; }
 
+.exec-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 10px 0 6px;
+}
+
+.exec-anim {
+  width: 100%;
+  max-height: 190px;
+  background: var(--panel2);
+  border: 1px solid #2a3245;
+  border-radius: 10px;
+  display: block;
+}
+
+.cues {
+  margin: 10px 0 4px;
+  padding-left: 18px;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.cues li { margin-bottom: 4px; }
+
 .video-btn {
   text-align: center;
   text-decoration: none;

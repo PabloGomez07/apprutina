@@ -1,9 +1,10 @@
-const CACHE = 'apprutina-v1';
+const CACHE = 'apprutina-v2';
 const ASSETS = [
   './',
   './index.html',
   './style.css',
   './app.js',
+  './anims.js',
   './data.js',
   './manifest.json',
   './icon-192.png',

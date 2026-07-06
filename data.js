@@ -54,6 +54,36 @@ const EXERCISE_DB = {
           ]
         },
         {
+          "name": "Press de banco declinado",
+          "variants": [
+            {
+              "series": "4",
+              "reps": "8-10 Rep"
+            },
+            null,
+            {
+              "series": "4",
+              "reps": "10-12 Rep"
+            },
+            null
+          ]
+        },
+        {
+          "name": "Press de banco declinado con Mancuernas",
+          "variants": [
+            null,
+            {
+              "series": "3",
+              "reps": "10-12 Rep"
+            },
+            null,
+            {
+              "series": "4",
+              "reps": "10-12 Rep"
+            }
+          ]
+        },
+        {
           "name": "Press con mancuernas",
           "variants": [
             null,
@@ -628,7 +658,7 @@ const EXERCISE_DB = {
           ]
         },
         {
-          "name": "Hack Squat",
+          "name": "Prensa 45°",
           "variants": [
             {
               "series": "3",
