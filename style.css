@@ -456,6 +456,173 @@ main { padding: 16px 20px 60px; max-width: 760px; margin: 0 auto; }
   margin-top: 12px;
 }
 
+/* --- entrenador --- */
+.coach-card {
+  background: linear-gradient(160deg, #1b2440 0%, var(--panel) 70%);
+  border: 1px solid #2f3d63;
+}
+
+.coach-date {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.coach-today {
+  font-size: 1.1rem;
+  margin: 6px 0 10px;
+  line-height: 1.35;
+}
+
+.coach-today strong { color: var(--accent); }
+
+.coach-lines p {
+  margin: 0 0 4px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.coach-lines strong { color: var(--text); font-weight: 600; }
+
+.coach-warn {
+  background: rgba(255, 138, 61, 0.12);
+  border: 1px solid rgba(255, 138, 61, 0.45);
+  color: #ffcda6;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.83rem;
+  line-height: 1.4;
+  margin: 10px 0;
+}
+
+.coach-warn strong { color: var(--priority); }
+
+.coach-card .btn { margin-top: 12px; }
+
+.omit-note {
+  margin: 0 0 6px;
+  font-size: 0.76rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* --- KPIs por bloque --- */
+.kpi-list { display: flex; flex-direction: column; gap: 8px; }
+
+.kpi-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--panel2);
+  border: 1px solid #2a3245;
+  border-left-width: 4px;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.kpi-row.verde    { border-left-color: var(--success); }
+.kpi-row.amarillo { border-left-color: #e0b341; }
+.kpi-row.rojo     { border-left-color: var(--danger); }
+.kpi-row.articular { border-left-color: var(--priority); }
+
+.kpi-row.sugerido { background: rgba(79, 140, 255, 0.12); border-color: var(--accent); }
+
+.kpi-dot { display: none; }
+
+.kpi-main { flex: 1; min-width: 0; }
+
+.kpi-name { font-size: 0.85rem; font-weight: 600; }
+.kpi-meta { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+
+.kpi-dias {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.kpi-row.rojo .kpi-dias { color: var(--danger); }
+.kpi-row.amarillo .kpi-dias { color: #e0b341; }
+.kpi-row.verde .kpi-dias { color: var(--success); }
+
+/* --- ajustes: días de carrera --- */
+.rundays { display: flex; flex-direction: column; gap: 8px; }
+
+.runday-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.runday-name { width: 84px; font-size: 0.85rem; flex-shrink: 0; }
+
+.runday-opts { display: flex; gap: 6px; flex: 1; }
+
+.runday-btn {
+  flex: 1;
+  padding: 13px 4px;
+  border-radius: 8px;
+  border: 1px solid #2a3245;
+  background: var(--panel2);
+  color: var(--muted);
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.runday-btn.sel { background: #2a3245; color: var(--text); border-color: #45507040; }
+.runday-btn.sel.suave { background: rgba(51, 193, 122, 0.22); border-color: var(--success); color: #a8ecc9; }
+.runday-btn.sel.duro { background: rgba(255, 138, 61, 0.22); border-color: var(--priority); color: #ffcda6; }
+
+/* --- ajustes: registro de carreras --- */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.form-grid input,
+.form-grid select {
+  background: var(--panel2);
+  border: 1px solid #2a3245;
+  border-radius: 8px;
+  padding: 11px 10px;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-family: inherit;
+  width: 100%;
+}
+
+.form-grid input:focus,
+.form-grid select:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+
+.sub-h { font-size: 0.8rem; color: var(--muted); margin: 16px 0 8px; font-weight: 600; }
+
+.run-list { display: flex; flex-direction: column; gap: 8px; }
+
+.run-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--panel2);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.run-top { font-size: 0.85rem; font-weight: 600; }
+.run-meta { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+
 /* --- mobile tweaks --- */
 @media (max-width: 480px) {
   .topbar { padding: 12px 12px 0; }
@@ -470,4 +637,8 @@ main { padding: 16px 20px 60px; max-width: 760px; margin: 0 auto; }
   .btn { padding: 14px 16px; font-size: 1rem; }
   .stat-row .stat-label { width: 105px; font-size: 0.78rem; }
   .progress-sticky { top: 88px; }
+  .tab-btn { font-size: 0.82rem; }
+  .coach-today { font-size: 1rem; }
+  .runday-name { width: 72px; font-size: 0.8rem; }
+  .form-grid { grid-template-columns: 1fr; }
 }

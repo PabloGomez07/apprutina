@@ -20,6 +20,7 @@
     <button class="tab-btn active" data-tab="entrenar">Entrenar</button>
     <button class="tab-btn" data-tab="historial">Historial</button>
     <button class="tab-btn" data-tab="stats">Estadísticas</button>
+    <button class="tab-btn" data-tab="ajustes">Ajustes</button>
   </nav>
 </header>
 
@@ -27,6 +28,15 @@
 
 <!-- ENTRENAR -->
 <section id="tab-entrenar" class="tab-panel active">
+
+  <!-- ENTRENADOR -->
+  <div class="card coach-card" id="coachCard">
+    <div class="coach-date" id="coachDate"></div>
+    <div class="coach-today" id="coachToday"></div>
+    <div class="coach-lines" id="coachLines"></div>
+    <div class="coach-warn" id="coachWarn" hidden></div>
+    <button id="btnAplicarBloque" class="btn btn-primary">Cargar este bloque</button>
+  </div>
 
   <div class="card">
     <h2>1. ¿Qué día entrenás?</h2>
@@ -84,6 +94,11 @@
 <!-- STATS -->
 <section id="tab-stats" class="tab-panel">
   <div class="card">
+    <h2>🎯 Bloques musculares</h2>
+    <p class="hint">Ordenados por urgencia: lo más atrasado va primero.</p>
+    <div id="kpiBlocks" class="kpi-list"></div>
+  </div>
+  <div class="card">
     <h2>Distribución de entrenamiento por músculo</h2>
     <div id="statsBars" class="stats-bars"></div>
   </div>
@@ -100,6 +115,50 @@
     </div>
     <p id="runningMsg" class="hint"></p>
     <div id="runningAreaBars" class="stats-bars"></div>
+  </div>
+</section>
+
+<!-- AJUSTES -->
+<section id="tab-ajustes" class="tab-panel">
+  <div class="card">
+    <h2>🏃 Días de carrera</h2>
+    <p class="hint">Marcá qué días corrés. Los días <strong>duros</strong> (intervalos o tempo) hacen que la app evite ponerte piernas el día anterior — son el mismo sistema y no se recuperan en 24 h.</p>
+    <div id="runDaysConfig" class="rundays"></div>
+  </div>
+
+  <div class="card">
+    <h2>📝 Registrar carrera</h2>
+    <p class="hint">Cargala al terminar. Si más adelante conectamos Strava, estos campos se llenan solos.</p>
+    <div class="form-grid">
+      <label>Fecha
+        <input type="date" id="runDate">
+      </label>
+      <label>Dónde
+        <select id="runPlace">
+          <option value="calle">Calle</option>
+          <option value="cinta">Cinta</option>
+        </select>
+      </label>
+      <label>Tipo
+        <select id="runType">
+          <option value="suave">Rodaje suave</option>
+          <option value="tempo">Tempo</option>
+          <option value="intervalos">Intervalos</option>
+          <option value="test">Test / simulacro</option>
+        </select>
+      </label>
+      <label>Distancia (km)
+        <input type="number" id="runKm" step="0.1" min="0" placeholder="3.2">
+      </label>
+      <label>Tiempo (mm:ss)
+        <input type="text" id="runTime" placeholder="14:40" inputmode="numeric">
+      </label>
+      <label>FC media (opcional)
+        <input type="number" id="runHr" min="0" placeholder="155">
+      </label>
+    </div>
+    <button id="btnGuardarCarrera" class="btn btn-primary">Guardar carrera</button>
+    <div id="runList" class="run-list"></div>
   </div>
 </section>
 
@@ -120,6 +179,7 @@
 
 <script src="data.js"></script>
 <script src="anims.js"></script>
+<script src="plan.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

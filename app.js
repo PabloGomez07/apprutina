@@ -21,7 +21,45 @@ const store = {
     if (v === null) localStorage.removeItem('rutina_current');
     else localStorage.setItem('rutina_current', JSON.stringify(v));
   },
+  // último bloque completado (1..5) y cuántas sesiones van, para rotar los pools
+  get plan() {
+    return JSON.parse(localStorage.getItem('rutina_plan') || '{"ultimoBloque":0,"sesiones":0}');
+  },
+  set plan(v) {
+    localStorage.setItem('rutina_plan', JSON.stringify(v));
+  },
+  // días de carrera: { 0..6: 'suave' | 'duro' }
+  get runDays() {
+    return JSON.parse(localStorage.getItem('rutina_rundays') || '{}');
+  },
+  set runDays(v) {
+    localStorage.setItem('rutina_rundays', JSON.stringify(v));
+  },
+  get runs() {
+    return JSON.parse(localStorage.getItem('rutina_runs') || '[]');
+  },
+  set runs(v) {
+    localStorage.setItem('rutina_runs', JSON.stringify(v));
+  },
 };
+
+// --- fecha: del dispositivo. El reloj del celular ya se sincroniza por NTP,
+// y leerla local es lo único que funciona sin señal en el gimnasio.
+function hoy() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function diasEntre(a, b) {
+  return Math.round((b - a) / 86400000);
+}
+
+function soloFecha(iso) {
+  const d = new Date(iso);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
 
 let selectedWeekday = WEEKDAYS[new Date().getDay()];
 let currentSession = null; // built session pending save
@@ -35,6 +73,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
     if (btn.dataset.tab === 'historial') renderHistory();
     if (btn.dataset.tab === 'stats') renderStats();
+    if (btn.dataset.tab === 'ajustes') { renderRunDays(); renderRuns(); }
   });
 });
 
@@ -123,15 +162,16 @@ function advanceGymSlot(rotation, groupKey) {
   const cur = rotation[groupKey] || 0;
   rotation[groupKey] = (cur + 1) % 4;
 }
-function nextRunningDay(rotation) {
-  return rotation[RUNNING_KEY] || 0; // 0..2
-}
-function advanceRunningDay(rotation) {
-  const cur = rotation[RUNNING_KEY] || 0;
-  rotation[RUNNING_KEY] = (cur + 1) % EXERCISE_DB.running.dias.length;
+// Cuántos ejercicios por músculo según cuántos grupos entren en el bloque.
+// Con 2-3 grupos por sesión hay que recortar o la sesión se va a 2 horas:
+// el volumen accesorio es lo primero que se corta cuando no cierra el tiempo.
+function cupoPorGrupo(cantGrupos) {
+  if (cantGrupos >= 3) return 2;
+  if (cantGrupos === 2) return 3;
+  return 5;
 }
 
-function buildGymBlock(groupKey, slot) {
+function buildGymBlock(groupKey, slot, cupo) {
   const g = EXERCISE_DB.groups[groupKey];
   let picks = g.exercises
     .map(ex => ({ ex, variant: ex.variants[slot] }))
@@ -143,6 +183,8 @@ function buildGymBlock(groupKey, slot) {
       if (picks.length) break;
     }
   }
+  // el Excel lista de compuesto a aislado: los primeros son los que importan
+  if (cupo) picks = picks.slice(0, cupo);
   return {
     key: groupKey,
     label: g.label,
@@ -196,25 +238,125 @@ function buildWarmupBlock() {
   };
 }
 
-function buildRunningBlock(dayIdx) {
-  const day = EXERCISE_DB.running.dias[dayIdx];
-  const items = day.items.map(it => ({
-    name: it.name,
-    detail: it.detail + (it.area ? ` · ${it.area}` : ''),
-    area: it.area,
-    nuevo: it.nuevo,
-    series: parseSeries(it.detail),
-    setsDone: 0,
-    done: false,
-  }));
+// Bloque que va en TODA sesión: pie/tobillo + core + abdomen de examen.
+// Es lo último que se recorta: sostiene el volumen de carrera y ataca
+// el punto débil del examen con frecuencia en vez de una sesión heroica.
+function buildFixedBlock(gruposDelDia, yaEnLaSesion) {
+  const contador = store.plan.sesiones || 0;
+  const elegidos = armarBloqueFijo(gruposDelDia, contador, yaEnLaSesion);
   return {
-    key: RUNNING_KEY,
-    label: day.title,
-    emoji: '🦵',
-    isRunning: true,
-    items,
+    key: 'FIJO',
+    label: 'Base articular + abdomen (siempre)',
+    emoji: '🔩',
+    isRunning: true, // cuenta como trabajo articular en las estadísticas
+    isFixed: true,
+    items: elegidos.map(x => ({
+      name: x.nombre,
+      detail: x.detalle + (x.area ? ` · ${x.area}` : ''),
+      area: x.area,
+      nota: x.nota,
+      series: parseSeries(x.detalle),
+      setsDone: 0,
+      done: false,
+    })),
   };
 }
+
+// ---------- ENTRENADOR ----------
+const NOMBRE_DIA = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const NOMBRE_MES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+// A qué bloque corresponde una sesión ya guardada (mira los grupos de gimnasio que tuvo)
+function bloqueDeSesion(session) {
+  const keys = session.blocks.filter(b => !b.isRunning).map(b => b.key);
+  for (const b of BLOQUES) {
+    if (keys.some(k => b.grupos.includes(k))) return b.id;
+  }
+  return null;
+}
+
+function proximoBloqueId() {
+  const p = store.plan;
+  return (p.ultimoBloque % BLOQUES.length) + 1;
+}
+
+// Días desde la última vez que se entrenó cada bloque (null = nunca)
+function diasSinEntrenarPorBloque() {
+  const out = {};
+  BLOQUES.forEach(b => { out[b.id] = null; });
+  const h = hoy();
+  store.history.forEach(session => {
+    const id = bloqueDeSesion(session);
+    if (!id) return;
+    const d = diasEntre(soloFecha(session.date), h);
+    if (out[id] === null || d < out[id]) out[id] = d;
+  });
+  return out;
+}
+
+// ¿mañana es día duro de carrera? piernas pesadas + intervalos son el mismo sistema
+function esDiaDuro(fecha) {
+  return store.runDays[fecha.getDay()] === 'duro';
+}
+
+function renderCoach() {
+  const h = hoy();
+  const manana = new Date(h.getTime() + 86400000);
+  const idHoy = proximoBloqueId();
+  const bloqueHoy = bloquePorId(idHoy);
+  const bloqueManana = bloquePorId((idHoy % BLOQUES.length) + 1);
+
+  document.getElementById('coachDate').textContent =
+    `${NOMBRE_DIA[h.getDay()]} ${h.getDate()} de ${NOMBRE_MES[h.getMonth()]}`;
+  document.getElementById('coachToday').innerHTML =
+    `Hoy te toca <strong>Bloque ${bloqueHoy.id}: ${bloqueHoy.emoji} ${bloqueHoy.nombre}</strong>`;
+
+  const lineas = [];
+  const hist = store.history;
+  if (hist.length) {
+    const ult = hist[0];
+    const dias = diasEntre(soloFecha(ult.date), h);
+    const idUlt = bloqueDeSesion(ult);
+    const nomUlt = idUlt ? bloquePorId(idUlt).nombre : 'trabajo articular';
+    const cuando = dias === 0 ? 'hoy' : dias === 1 ? 'ayer' : `hace ${dias} días`;
+    lineas.push(`La última vez entrenaste <strong>${nomUlt}</strong>, ${cuando}.`);
+    if (dias >= 4) lineas.push(`Van ${dias} días sin entrenar — retomá suave.`);
+  } else {
+    lineas.push('Es tu primer entrenamiento: arrancamos por el bloque 1.');
+  }
+  lineas.push(`Mañana te tocaría <strong>Bloque ${bloqueManana.id}: ${bloqueManana.nombre}</strong>.`);
+  document.getElementById('coachLines').innerHTML = lineas.map(l => `<p>${l}</p>`).join('');
+
+  // aviso: no cargar piernas el día antes de intervalos
+  const warn = document.getElementById('coachWarn');
+  const esPiernas = bloqueHoy.grupos.some(g => ['CUADRICEPS', 'FEMORALES', 'GLUTEOS'].includes(g));
+  if (esPiernas && esDiaDuro(manana)) {
+    warn.innerHTML = `⚠️ Mañana (${NOMBRE_DIA[manana.getDay()]}) tenés carrera dura. ` +
+      `Piernas pesadas hoy te la arruina — son el mismo sistema y necesitan 48 h. ` +
+      `Mejor adelantá el <strong>Bloque ${bloqueManana.id}: ${bloqueManana.nombre}</strong> y dejá piernas para después.`;
+    warn.hidden = false;
+  } else if (esDiaDuro(h) && esPiernas) {
+    warn.innerHTML = `⚠️ Hoy tenés carrera dura. Si ya corriste, dejá las piernas livianas; ` +
+      `si vas a correr después, hacé la carrera primero.`;
+    warn.hidden = false;
+  } else {
+    warn.hidden = true;
+  }
+
+  document.getElementById('btnAplicarBloque').textContent =
+    `Cargar Bloque ${bloqueHoy.id}: ${bloqueHoy.nombre}`;
+}
+
+// tildar los grupos del bloque sugerido (el usuario decide apretando el botón)
+document.getElementById('btnAplicarBloque').addEventListener('click', () => {
+  const bloque = bloquePorId(proximoBloqueId());
+  document.querySelectorAll('#groupGrid input').forEach(i => {
+    i.checked = bloque.grupos.includes(i.value);
+    i.closest('.chip').classList.toggle('checked', i.checked);
+  });
+  document.getElementById('btnGenerar').scrollIntoView({ behavior: 'smooth', block: 'center' });
+});
 
 // ---------- GENERATE WORKOUT ----------
 document.getElementById('btnGenerar').addEventListener('click', () => {
@@ -232,14 +374,19 @@ document.getElementById('btnGenerar').addEventListener('click', () => {
   // BLOQUE 0 first: the Excel says to do it before weights to prep tendons
   if (runningChecked) blocks.push(buildWarmupBlock());
 
+  const cupo = cupoPorGrupo(checked.length);
   checked.forEach(groupKey => {
     const slot = nextGymSlot(rotation, groupKey);
-    blocks.push(buildGymBlock(groupKey, slot));
+    blocks.push(buildGymBlock(groupKey, slot, cupo));
   });
 
+  // Un solo bloque articular por sesión. Los compuestos del Excel de running
+  // (peso muerto, dominadas, press banca, búlgara) ya los cubre la rotación
+  // de los 5 bloques, así que acá va solo lo que no está en ningún otro lado:
+  // pie, tobillo, core y abdomen de examen.
   if (runningChecked) {
-    const dayIdx = nextRunningDay(rotation);
-    blocks.push(buildRunningBlock(dayIdx));
+    const yaEnLaSesion = blocks.flatMap(b => b.items.map(i => i.name));
+    blocks.push(buildFixedBlock(checked, yaEnLaSesion));
   }
 
   currentSession = {
@@ -262,6 +409,12 @@ function renderWorkout() {
     const h3 = document.createElement('h3');
     h3.textContent = `${block.emoji} ${block.label}`;
     div.appendChild(h3);
+    if (block.isFixed) {
+      const nota = document.createElement('p');
+      nota.className = 'omit-note';
+      nota.textContent = 'Pie, tobillo, core y abdomen de examen. Es lo que sostiene el volumen de carrera: no se recorta.';
+      div.appendChild(nota);
+    }
     block.items.forEach((item, idx) => {
       const row = document.createElement('div');
       row.className = 'exercise-row';
@@ -362,23 +515,31 @@ document.getElementById('btnCancelar').addEventListener('click', () => {
 document.getElementById('btnGuardar').addEventListener('click', () => {
   if (!currentSession) return;
   const rotation = store.rotation;
-  const { checkedGroups, runningUsed } = currentSession._pendingRotation;
+  const { checkedGroups } = currentSession._pendingRotation;
   checkedGroups.forEach(g => advanceGymSlot(rotation, g));
-  if (runningUsed) advanceRunningDay(rotation);
   store.rotation = rotation;
 
   const history = store.history;
-  history.unshift({
+  const sesion = {
     date: currentSession.date,
     weekday: currentSession.weekday,
     blocks: currentSession.blocks,
-  });
+  };
+  history.unshift(sesion);
   store.history = history;
+
+  // la rotación avanza al completar, no por calendario: si faltás, el bloque espera
+  const plan = store.plan;
+  const idEntrenado = bloqueDeSesion(sesion);
+  if (idEntrenado) plan.ultimoBloque = idEntrenado;
+  plan.sesiones = (plan.sesiones || 0) + 1;
+  store.plan = plan;
 
   currentSession = null;
   store.current = null;
   document.getElementById('workoutCard').hidden = true;
   renderGroupGrid(); // rebuilds unchecked and refreshes the % per muscle
+  renderCoach();
   alert('¡Entrenamiento guardado! 💪');
 });
 
@@ -492,6 +653,7 @@ function renderStats() {
       barsEl.appendChild(row);
     });
 
+  renderKpiBlocks(history);
   renderMonthlyStats(history);
 
   const runningPct = totalDoneExercises ? Math.round((runningDoneExercises / totalDoneExercises) * 100) : 0;
@@ -516,6 +678,75 @@ function renderStats() {
         <span class="stat-pct">${pct}%</span>`;
       runningAreaEl.appendChild(row);
     });
+}
+
+// ---------- KPIs POR BLOQUE ----------
+// El KPI que realmente responde "qué me toca" es días sin entrenar.
+function renderKpiBlocks(history) {
+  const el = document.getElementById('kpiBlocks');
+  el.innerHTML = '';
+  const h = hoy();
+  const hace30 = new Date(h.getTime() - 30 * 86400000);
+  const sinEntrenar = diasSinEntrenarPorBloque();
+  const idSugerido = proximoBloqueId();
+
+  // series de los últimos 30 días por bloque, y del trabajo articular
+  const series = {};
+  let seriesArticular = 0, seriesTotal = 0;
+  BLOQUES.forEach(b => { series[b.id] = 0; });
+  history.forEach(session => {
+    if (soloFecha(session.date) < hace30) return;
+    session.blocks.forEach(block => {
+      const hechas = block.items.reduce((a, i) => a + setsDoneOf(i), 0);
+      if (!hechas) return;
+      seriesTotal += hechas;
+      if (block.isRunning) { seriesArticular += hechas; return; }
+      const b = bloqueDeGrupo(block.key);
+      if (b) series[b.id] += hechas;
+    });
+  });
+
+  const filas = BLOQUES.map(b => ({
+    b,
+    dias: sinEntrenar[b.id],
+    series: series[b.id],
+    pct: seriesTotal ? Math.round((series[b.id] / seriesTotal) * 100) : 0,
+  }));
+
+  // más atrasado arriba; los nunca entrenados primero de todo
+  filas.sort((x, y) => {
+    if (x.dias === null && y.dias === null) return x.b.id - y.b.id;
+    if (x.dias === null) return -1;
+    if (y.dias === null) return 1;
+    return y.dias - x.dias;
+  });
+
+  filas.forEach(f => {
+    const estado = f.dias === null ? 'rojo' : f.dias <= 4 ? 'verde' : f.dias <= 8 ? 'amarillo' : 'rojo';
+    const txtDias = f.dias === null ? 'nunca' : f.dias === 0 ? 'hoy' : f.dias === 1 ? 'ayer' : `hace ${f.dias} d`;
+    const card = document.createElement('div');
+    card.className = 'kpi-row ' + estado + (f.b.id === idSugerido ? ' sugerido' : '');
+    card.innerHTML = `
+      <span class="kpi-dot"></span>
+      <div class="kpi-main">
+        <div class="kpi-name">${f.b.emoji} Bloque ${f.b.id} · ${f.b.nombre}</div>
+        <div class="kpi-meta">${f.series} series (30 d) · ${f.pct}% del volumen</div>
+      </div>
+      <div class="kpi-dias">${txtDias}</div>`;
+    el.appendChild(card);
+  });
+
+  const pctArt = seriesTotal ? Math.round((seriesArticular / seriesTotal) * 100) : 0;
+  const extra = document.createElement('div');
+  extra.className = 'kpi-row articular';
+  extra.innerHTML = `
+    <span class="kpi-dot"></span>
+    <div class="kpi-main">
+      <div class="kpi-name">🔩 Base articular + abdomen</div>
+      <div class="kpi-meta">${seriesArticular} series (30 d) · ${pctArt}% del volumen · va en toda sesión</div>
+    </div>
+    <div class="kpi-dias">fijo</div>`;
+  el.appendChild(extra);
 }
 
 // ---------- MONTHLY STATS ----------
@@ -691,7 +922,8 @@ function showExerciseInfo(item, block) {
     muscleLabel = 'Músculo trabajado: ' + (EXERCISE_DB.groups[block.key] ? EXERCISE_DB.groups[block.key].label : block.label);
   }
   document.getElementById('modalTitle').textContent = item.name;
-  document.getElementById('modalDetail').textContent = item.detail;
+  document.getElementById('modalDetail').innerHTML =
+    item.detail + (item.nota ? `<br><em>${item.nota}</em>` : '');
 
   // execution preview: animated stick figure + technique cues
   const pattern = patternFor(item.name, block.key);
@@ -722,6 +954,118 @@ document.getElementById('exModal').addEventListener('click', (ev) => {
   if (ev.target.id === 'exModal') document.getElementById('exModal').hidden = true;
 });
 
+// ---------- AJUSTES: DÍAS DE CARRERA ----------
+function renderRunDays() {
+  const el = document.getElementById('runDaysConfig');
+  const cfg = store.runDays;
+  el.innerHTML = '';
+  WEEKDAYS.forEach((dia, idx) => {
+    const estado = cfg[idx] || '';
+    const fila = document.createElement('div');
+    fila.className = 'runday-row';
+    fila.innerHTML = `
+      <span class="runday-name">${dia}</span>
+      <div class="runday-opts">
+        <button class="runday-btn ${estado === '' ? 'sel' : ''}" data-d="${idx}" data-v="">No corro</button>
+        <button class="runday-btn ${estado === 'suave' ? 'sel suave' : ''}" data-d="${idx}" data-v="suave">Suave</button>
+        <button class="runday-btn ${estado === 'duro' ? 'sel duro' : ''}" data-d="${idx}" data-v="duro">Duro</button>
+      </div>`;
+    fila.querySelectorAll('.runday-btn').forEach(b => {
+      b.addEventListener('click', () => {
+        const c = store.runDays;
+        if (b.dataset.v === '') delete c[b.dataset.d];
+        else c[b.dataset.d] = b.dataset.v;
+        store.runDays = c;
+        renderRunDays();
+        renderCoach();
+      });
+    });
+    el.appendChild(fila);
+  });
+}
+
+// ---------- AJUSTES: REGISTRO DE CARRERAS ----------
+// Estructura alineada con lo que devuelve la API de Strava, para que
+// conectarla más adelante sea mapear campos y no rehacer el modelo.
+function parseTiempoASegundos(txt) {
+  const m = String(txt || '').trim().match(/^(\d+):([0-5]?\d)$/);
+  if (!m) return null;
+  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+}
+
+function fmtSegundos(s) {
+  const m = Math.floor(s / 60), r = Math.round(s % 60);
+  return `${m}:${String(r).padStart(2, '0')}`;
+}
+
+function paceDe(km, seg) {
+  if (!km || !seg) return null;
+  return seg / km; // segundos por km
+}
+
+document.getElementById('btnGuardarCarrera').addEventListener('click', () => {
+  const fecha = document.getElementById('runDate').value;
+  const km = parseFloat(document.getElementById('runKm').value);
+  const seg = parseTiempoASegundos(document.getElementById('runTime').value);
+  const hr = parseInt(document.getElementById('runHr').value, 10);
+
+  if (!fecha) { alert('Poné la fecha de la carrera.'); return; }
+  if (!km || km <= 0) { alert('Poné la distancia en km.'); return; }
+  if (seg === null) { alert('El tiempo va en formato mm:ss — por ejemplo 14:40.'); return; }
+
+  const runs = store.runs;
+  runs.unshift({
+    start_date: new Date(fecha + 'T12:00:00').toISOString(),
+    type: 'Run',
+    trainer: document.getElementById('runPlace').value === 'cinta',
+    workout: document.getElementById('runType').value,
+    distance: Math.round(km * 1000),        // metros, como Strava
+    moving_time: seg,                        // segundos, como Strava
+    average_heartrate: isNaN(hr) ? null : hr,
+    source: 'manual',
+  });
+  store.runs = runs;
+
+  document.getElementById('runKm').value = '';
+  document.getElementById('runTime').value = '';
+  document.getElementById('runHr').value = '';
+  renderRuns();
+  alert('¡Carrera guardada! 🏃');
+});
+
+const NOMBRE_TIPO = { suave: 'Rodaje suave', tempo: 'Tempo', intervalos: 'Intervalos', test: 'Test' };
+
+function renderRuns() {
+  const el = document.getElementById('runList');
+  const runs = store.runs;
+  if (!runs.length) {
+    el.innerHTML = '<p class="empty-msg">Todavía no registraste carreras.</p>';
+    return;
+  }
+  el.innerHTML = '<h3 class="sub-h">Últimas carreras</h3>';
+  runs.slice(0, 10).forEach((r, idx) => {
+    const km = r.distance / 1000;
+    const pace = paceDe(km, r.moving_time);
+    const fecha = new Date(r.start_date).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+    const item = document.createElement('div');
+    item.className = 'run-item';
+    item.innerHTML = `
+      <div>
+        <div class="run-top">${fecha} · ${km.toFixed(1)} km · ${fmtSegundos(r.moving_time)}</div>
+        <div class="run-meta">${NOMBRE_TIPO[r.workout] || r.workout} · ${r.trainer ? 'cinta' : 'calle'}${
+          pace ? ` · ${fmtSegundos(pace)}/km` : ''}${r.average_heartrate ? ` · ${r.average_heartrate} lpm` : ''}</div>
+      </div>
+      <button class="del-btn" data-i="${idx}">Eliminar</button>`;
+    item.querySelector('.del-btn').addEventListener('click', () => {
+      const list = store.runs;
+      list.splice(idx, 1);
+      store.runs = list;
+      renderRuns();
+    });
+    el.appendChild(item);
+  });
+}
+
 // ---------- BACKUP ----------
 document.getElementById('btnExport').addEventListener('click', () => {
   const payload = {
@@ -729,6 +1073,9 @@ document.getElementById('btnExport').addEventListener('click', () => {
     exported: new Date().toISOString(),
     history: store.history,
     rotation: store.rotation,
+    plan: store.plan,
+    runDays: store.runDays,
+    runs: store.runs,
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
@@ -756,8 +1103,12 @@ document.getElementById('importFile').addEventListener('change', (ev) => {
       if (!confirm(`Importar ${data.history.length} entrenamientos. Esto reemplaza el historial actual. ¿Continuar?`)) return;
       store.history = data.history;
       if (data.rotation) store.rotation = data.rotation;
+      if (data.plan) store.plan = data.plan;
+      if (data.runDays) store.runDays = data.runDays;
+      if (data.runs) store.runs = data.runs;
       renderHistory();
       renderGroupGrid();
+      renderCoach();
       alert('¡Respaldo importado!');
     } catch {
       alert('No se pudo leer el archivo.');
@@ -770,7 +1121,9 @@ document.getElementById('importFile').addEventListener('change', (ev) => {
 // ---------- INIT ----------
 renderWeekdayPicker();
 renderGroupGrid();
+renderCoach();
 document.getElementById('chipRunning').classList.add('checked');
+document.getElementById('runDate').valueAsDate = new Date();
 
 // restore in-progress session (e.g. closed the app mid-workout at the gym)
 const savedSession = store.current;
