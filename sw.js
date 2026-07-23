@@ -1,4 +1,4 @@
-const CACHE = 'apprutina-v3';
+const CACHE = 'apprutina-v4';
 const ASSETS = [
   './',
   './index.html',

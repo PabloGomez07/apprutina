@@ -151,9 +151,30 @@ function buildGymBlock(groupKey, slot) {
     items: picks.map(p => ({
       name: p.ex.name,
       detail: `${p.variant.series} series x ${p.variant.reps}`,
+      series: parseInt(p.variant.series, 10) || 0,
+      setsDone: 0,
       done: false,
     })),
   };
+}
+
+// running items describe volume in prose: "3 x 10 (por pierna)." → 3 sets
+function parseSeries(detail) {
+  const m = String(detail || '').match(/^\s*(\d+)\s*(?:series?\s*)?x/i);
+  const n = m ? parseInt(m[1], 10) : 0;
+  return n > 0 && n <= 10 ? n : 0;
+}
+
+// how many sets this exercise has; falls back to parsing older saved items
+function seriesTotal(item) {
+  if (typeof item.series === 'number' && item.series > 0) return Math.min(item.series, 10);
+  return parseSeries(item.detail);
+}
+
+function setsDoneOf(item) {
+  const total = seriesTotal(item);
+  if (typeof item.setsDone === 'number') return Math.min(item.setsDone, total);
+  return item.done ? total : 0; // sessions saved before this feature existed
 }
 
 function buildWarmupBlock() {
@@ -168,6 +189,8 @@ function buildWarmupBlock() {
       name: it.name,
       detail: it.detail + (it.area ? ` · ${it.area}` : ''),
       area: it.area,
+      series: parseSeries(it.detail),
+      setsDone: 0,
       done: false,
     })),
   };
@@ -180,6 +203,8 @@ function buildRunningBlock(dayIdx) {
     detail: it.detail + (it.area ? ` · ${it.area}` : ''),
     area: it.area,
     nuevo: it.nuevo,
+    series: parseSeries(it.detail),
+    setsDone: 0,
     done: false,
   }));
   return {
@@ -241,6 +266,15 @@ function renderWorkout() {
       const row = document.createElement('div');
       row.className = 'exercise-row';
       const canSwap = !block.isRunning;
+      const total = seriesTotal(item);
+      const dots = total
+        ? `<div class="sets-row">
+             <span class="sets-label">Series</span>
+             ${Array.from({ length: total }, (_, s) =>
+               `<button class="set-dot" data-set="${s}" aria-label="Serie ${s + 1}">${s + 1}</button>`).join('')}
+             <span class="sets-count"></span>
+           </div>`
+        : '';
       row.innerHTML = `
         <input type="checkbox" data-block="${block.key}" data-idx="${idx}" id="cb-${block.key}-${idx}">
         <label for="cb-${block.key}-${idx}">
@@ -250,15 +284,43 @@ function renderWorkout() {
         <div class="ex-actions">
           <button class="icon-btn info-btn" title="Ver guía del ejercicio">👁</button>
           ${canSwap ? '<button class="icon-btn swap-btn" title="Cambiar por otro ejercicio">⇄</button>' : ''}
-        </div>`;
+        </div>
+        ${dots}`;
       const cb = row.querySelector('input');
-      cb.checked = !!item.done;
-      row.classList.toggle('done', !!item.done);
+
+      // paints dots + checkbox from item state
+      const paint = () => {
+        const doneSets = setsDoneOf(item);
+        row.querySelectorAll('.set-dot').forEach((d, s) => d.classList.toggle('on', s < doneSets));
+        const counter = row.querySelector('.sets-count');
+        if (counter) counter.textContent = `${doneSets}/${total}`;
+        cb.checked = !!item.done;
+        row.classList.toggle('done', !!item.done);
+      };
+
+      const commit = () => {
+        store.current = currentSession;
+        paint();
+        updateProgress();
+      };
+
+      item.setsDone = setsDoneOf(item); // normalize sessions saved before this feature
+      paint();
+
       cb.addEventListener('change', () => {
         item.done = cb.checked;
-        row.classList.toggle('done', cb.checked);
-        store.current = currentSession;
-        updateProgress();
+        item.setsDone = cb.checked ? total : 0;
+        commit();
+      });
+
+      row.querySelectorAll('.set-dot').forEach(dot => {
+        dot.addEventListener('click', () => {
+          const s = parseInt(dot.dataset.set, 10);
+          // tap fills up to that set; tapping the last filled one undoes it
+          item.setsDone = (item.setsDone === s + 1) ? s : s + 1;
+          item.done = total > 0 && item.setsDone >= total;
+          commit();
+        });
       });
       row.querySelector('.info-btn').addEventListener('click', () => showExerciseInfo(item, block));
       if (canSwap) {
@@ -274,11 +336,20 @@ function renderWorkout() {
 }
 
 function updateProgress() {
-  let total = 0, done = 0;
-  currentSession.blocks.forEach(b => b.items.forEach(i => { total++; if (i.done) done++; }));
-  const pct = total ? Math.round((done / total) * 100) : 0;
+  let exTotal = 0, exDone = 0, setTotal = 0, setDone = 0;
+  currentSession.blocks.forEach(b => b.items.forEach(i => {
+    exTotal++;
+    if (i.done) exDone++;
+    setTotal += seriesTotal(i);
+    setDone += setsDoneOf(i);
+  }));
+  // series give a finer progress bar than whole exercises
+  const pct = setTotal ? Math.round((setDone / setTotal) * 100)
+                       : (exTotal ? Math.round((exDone / exTotal) * 100) : 0);
   document.getElementById('progressFill').style.width = pct + '%';
-  document.getElementById('progressLabel').textContent = `${done} / ${total} completados`;
+  document.getElementById('progressLabel').textContent =
+    setTotal ? `${setDone}/${setTotal} series · ${exDone}/${exTotal} ej.`
+             : `${exDone} / ${exTotal} completados`;
 }
 
 document.getElementById('btnCancelar').addEventListener('click', () => {
@@ -339,7 +410,11 @@ function renderHistory() {
       <div class="h-detail">
         ${session.blocks.map(b => `
           <strong>${b.emoji} ${b.label}</strong>
-          <ul>${b.items.map(i => `<li>${i.done ? '✅' : '⬜'} ${i.name} — ${i.detail}</li>`).join('')}</ul>
+          <ul>${b.items.map(i => {
+            const t = seriesTotal(i), d = setsDoneOf(i);
+            const sets = t ? ` <span class="h-sets">(${d}/${t} series)</span>` : '';
+            return `<li>${i.done ? '✅' : (d ? '🔸' : '⬜')} ${i.name} — ${i.detail}${sets}</li>`;
+          }).join('')}</ul>
         `).join('')}
       </div>
     `;
@@ -519,6 +594,8 @@ function swapExercise(block, idx) {
   block.items[idx] = {
     name: pick.ex.name,
     detail: `${pick.v.series} series x ${pick.v.reps}`,
+    series: parseInt(pick.v.series, 10) || 0,
+    setsDone: 0,
     done: false,
   };
   store.current = currentSession;
