@@ -7,6 +7,7 @@ const EXERCISE_DB = {
       "exercises": [
         {
           "name": "Press de banco plano",
+          "equipment": "barra",
           "variants": [
             {
               "series": "4",
@@ -25,6 +26,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Press de banco inclinado",
+          "equipment": "barra",
           "variants": [
             null,
             {
@@ -40,6 +42,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Press de banco inclinado con Mancuernas",
+          "equipment": "mancuernas",
           "variants": [
             {
               "series": "4",
@@ -55,6 +58,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Press de banco declinado",
+          "equipment": "barra",
           "variants": [
             {
               "series": "4",
@@ -70,6 +74,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Press de banco declinado con Mancuernas",
+          "equipment": "mancuernas",
           "variants": [
             null,
             {
@@ -85,6 +90,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Press con mancuernas",
+          "equipment": "mancuernas",
           "variants": [
             null,
             {
@@ -100,6 +106,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Apertura con polea - Banco Declinado",
+          "equipment": "polea",
           "variants": [
             null,
             {
@@ -115,6 +122,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Apertura con polea - Banco Inclinado",
+          "equipment": "polea",
           "variants": [
             {
               "series": "3",
@@ -130,6 +138,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Cruce de Poleas",
+          "equipment": "polea",
           "variants": [
             {
               "series": "3",
@@ -155,6 +164,7 @@ const EXERCISE_DB = {
       "exercises": [
         {
           "name": "Frances con Barra",
+          "equipment": "barra",
           "variants": [
             {
               "series": "4",
@@ -170,6 +180,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Empuje en banco plano",
+          "equipment": "barra",
           "variants": [
             {
               "series": "4",
@@ -185,6 +196,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Frances con Mancuernas Tras Nuca",
+          "equipment": "mancuernas",
           "variants": [
             null,
             {
@@ -200,6 +212,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Extensiones en Polea Alta - Barra",
+          "equipment": "polea",
           "variants": [
             null,
             {
@@ -215,6 +228,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Extensiones en Polea Alta - Soga",
+          "equipment": "polea",
           "variants": [
             {
               "series": "3",
@@ -230,6 +244,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Fondo en Paralelas",
+          "equipment": "peso corporal",
           "variants": [
             {
               "series": "4",
@@ -245,6 +260,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Tricep Katana",
+          "equipment": "polea",
           "variants": [
             null,
             {
@@ -260,6 +276,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Patada de Burro Polea",
+          "equipment": "polea",
           "variants": [
             {
               "series": "3",
@@ -275,6 +292,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Posteriores en Polea",
+          "equipment": "polea",
           "variants": [
             null,
             {
@@ -290,6 +308,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Press Frances con Mancuernas",
+          "equipment": "mancuernas",
           "variants": [
             null,
             {
@@ -312,6 +331,7 @@ const EXERCISE_DB = {
       "exercises": [
         {
           "name": "Dominadas en barra",
+          "equipment": "barra",
           "variants": [
             {
               "series": "4",
@@ -324,6 +344,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Tiron agarre ancho en polea",
+          "equipment": "polea",
           "variants": [
             null,
             {
@@ -339,6 +360,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Tiron cerrado en polea alta",
+          "equipment": "polea",
           "variants": [
             null,
             {
@@ -354,6 +376,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Remo en polea baja",
+          "equipment": "polea",
           "variants": [
             {
               "series": "3",
@@ -369,6 +392,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Remo hamer con apoyo central",
+          "equipment": "maquina",
           "variants": [
             null,
             {
@@ -381,6 +405,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Remo con barra",
+          "equipment": "barra",
           "variants": [
             null,
             null,
@@ -393,6 +418,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Barra T",
+          "equipment": "barra",
           "variants": [
             {
               "series": "4",
@@ -408,6 +434,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Pull-Over en polea alta",
+          "equipment": "polea",
           "variants": [
             {
               "series": "3",
@@ -423,6 +450,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Extension de tronco en banco",
+          "equipment": "peso corporal",
           "variants": [
             null,
             null,
@@ -435,6 +463,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Pajaros en Polea",
+          "equipment": "polea",
           "variants": [
             {
               "series": "3",
@@ -450,6 +479,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Remo al Menton",
+          "equipment": "barra",
           "variants": [
             null,
             null,
@@ -462,6 +492,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Remo Foca",
+          "equipment": "mancuernas",
           "variants": [
             {
               "series": "4",
@@ -477,6 +508,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Remo con Mancuernas",
+          "equipment": "mancuernas",
           "variants": [
             null,
             {
@@ -499,6 +531,7 @@ const EXERCISE_DB = {
       "exercises": [
         {
           "name": "Curl con Barra W/ OLIMP",
+          "equipment": "barra",
           "variants": [
             null,
             {
@@ -514,6 +547,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Concentrado con Mancuernas",
+          "equipment": "mancuernas",
           "variants": [
             {
               "series": "3",
@@ -532,6 +566,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Curl de Martillo",
+          "equipment": "mancuernas",
           "variants": [
             {
               "series": "4",
@@ -547,6 +582,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Banco Scott sentado W",
+          "equipment": "barra",
           "variants": [
             {
               "series": "4",
@@ -562,6 +598,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Banco Scott de Pie",
+          "equipment": "barra",
           "variants": [
             null,
             {
@@ -577,6 +614,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Cruce de poleas enfrentadas",
+          "equipment": "polea",
           "variants": [
             {
               "series": "4",
@@ -592,6 +630,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Curl en Polea Baja - Soga",
+          "equipment": "polea",
           "variants": [
             {
               "series": "3",
@@ -610,6 +649,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Curl de Bicep - Mancuerna Inclinado",
+          "equipment": "mancuernas",
           "variants": [
             null,
             {
@@ -625,6 +665,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Curl de Polea - Barra",
+          "equipment": "polea",
           "variants": [
             null,
             null,
@@ -647,6 +688,7 @@ const EXERCISE_DB = {
       "exercises": [
         {
           "name": "Sentadillas",
+          "equipment": "barra",
           "variants": [
             {
               "series": "4",
@@ -659,6 +701,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Prensa 45°",
+          "equipment": "maquina",
           "variants": [
             {
               "series": "3",
@@ -680,6 +723,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Estocada con Mancuernas",
+          "equipment": "mancuernas",
           "variants": [
             {
               "series": "4",
@@ -698,6 +742,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Estocada Bulgara",
+          "equipment": "mancuernas",
           "variants": [
             null,
             {
@@ -713,6 +758,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Cuadricera",
+          "equipment": "maquina",
           "variants": [
             {
               "series": "4",
@@ -731,6 +777,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Sentadilla Frontal",
+          "equipment": "barra",
           "variants": [
             null,
             {
@@ -746,6 +793,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Sentadilla Multipower",
+          "equipment": "barra guiada",
           "variants": [
             null,
             {
@@ -768,6 +816,7 @@ const EXERCISE_DB = {
       "exercises": [
         {
           "name": "En Maquina",
+          "equipment": "maquina",
           "variants": [
             {
               "series": "3",
@@ -783,6 +832,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "En Polea Baja",
+          "equipment": "polea",
           "variants": [
             null,
             {
@@ -798,6 +848,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Prensa 45°",
+          "equipment": "maquina",
           "variants": [
             {
               "series": "3",
@@ -823,6 +874,7 @@ const EXERCISE_DB = {
       "exercises": [
         {
           "name": "Sentadilla en Barra Guiada",
+          "equipment": "barra guiada",
           "variants": [
             {
               "series": "4",
@@ -841,6 +893,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Peso Muerto",
+          "equipment": "barra",
           "variants": [
             {
               "series": "3",
@@ -859,6 +912,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Hip Thrust",
+          "equipment": "barra",
           "variants": [
             {
               "series": "4",
@@ -884,6 +938,7 @@ const EXERCISE_DB = {
       "exercises": [
         {
           "name": "Isquios en Camilla",
+          "equipment": "maquina",
           "variants": [
             {
               "series": "4",
@@ -899,6 +954,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Isquios de Pies",
+          "equipment": "maquina",
           "variants": [
             null,
             {
@@ -914,6 +970,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Buenos Dias",
+          "equipment": "barra",
           "variants": [
             {
               "series": "3",
@@ -929,6 +986,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Peso Muerto Rumano - Barra",
+          "equipment": "barra",
           "variants": [
             {
               "series": "3",
@@ -941,6 +999,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Peso Muerto Rumano - Mancuernas",
+          "equipment": "mancuernas",
           "variants": [
             null,
             {
@@ -963,6 +1022,7 @@ const EXERCISE_DB = {
       "exercises": [
         {
           "name": "Pie en Maquina",
+          "equipment": "maquina",
           "variants": [
             null,
             {
@@ -978,6 +1038,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Extension en Prensa",
+          "equipment": "maquina",
           "variants": [
             null,
             null,
@@ -990,6 +1051,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Extension de Pie Sentado",
+          "equipment": "maquina",
           "variants": [
             {
               "series": "4",
@@ -1012,6 +1074,7 @@ const EXERCISE_DB = {
       "exercises": [
         {
           "name": "Press Militar con Barra",
+          "equipment": "barra",
           "variants": [
             {
               "series": "4",
@@ -1030,6 +1093,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Pres Frontal con Barra",
+          "equipment": "barra",
           "variants": [
             null,
             {
@@ -1045,6 +1109,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Press Militar sentado con Mancuernas",
+          "equipment": "mancuernas",
           "variants": [
             {
               "series": "3",
@@ -1060,6 +1125,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Arnlod",
+          "equipment": "mancuernas",
           "variants": [
             {
               "series": "4",
@@ -1078,6 +1144,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Vuelo Lateral de Pie",
+          "equipment": "mancuernas",
           "variants": [
             {
               "series": "3",
@@ -1093,6 +1160,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Vuelo Lateral Sentado",
+          "equipment": "mancuernas",
           "variants": [
             null,
             {
@@ -1108,6 +1176,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Elevacion Lateral Polea",
+          "equipment": "polea",
           "variants": [
             null,
             {
@@ -1130,6 +1199,7 @@ const EXERCISE_DB = {
       "exercises": [
         {
           "name": "Crunch con Disco",
+          "equipment": "disco",
           "variants": [
             {
               "series": "4",
@@ -1148,6 +1218,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Press Pallof",
+          "equipment": "polea",
           "variants": [
             null,
             {
@@ -1163,6 +1234,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Crunch con polea",
+          "equipment": "polea",
           "variants": [
             null,
             {
@@ -1178,6 +1250,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Plancha",
+          "equipment": "peso corporal",
           "variants": [
             {
               "series": "3",
@@ -1196,6 +1269,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Crunch en Maquina",
+          "equipment": "maquina",
           "variants": [
             {
               "series": "3",
@@ -1214,6 +1288,7 @@ const EXERCISE_DB = {
         },
         {
           "name": "Rueda",
+          "equipment": "peso corporal",
           "variants": [
             {
               "series": "4",
