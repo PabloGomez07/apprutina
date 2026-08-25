@@ -57,15 +57,18 @@ function _fig(p) {
   return s;
 }
 
-function animSVG(def) {
+// dur en segundos: 2.6 normal, 5.2 en modo "½ Lento". La figura se
+// reproduce/pausa con svg.pauseAnimations()/unpauseAnimations() desde app.js.
+function animSVG(def, dur) {
+  const d = (dur || 2.6) + 's';
   return `<svg viewBox="0 0 200 140" class="exec-anim" xmlns="http://www.w3.org/2000/svg">
     <line x1="8" y1="127" x2="192" y2="127" stroke="#2a3245" stroke-width="2"/>
     <g stroke="#3d4763" stroke-width="3" stroke-linecap="round" fill="none">${def.props || ''}</g>
     <g>
       <g>${_fig(def.A)}
-        <animate attributeName="opacity" values="1;1;0;0;1" keyTimes="0;0.42;0.5;0.92;1" dur="2.6s" repeatCount="indefinite"/></g>
+        <animate attributeName="opacity" values="1;1;0;0;1" keyTimes="0;0.42;0.5;0.92;1" dur="${d}" repeatCount="indefinite"/></g>
       <g opacity="0">${_fig(def.B)}
-        <animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.42;0.5;0.92;1" dur="2.6s" repeatCount="indefinite"/></g>
+        <animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.42;0.5;0.92;1" dur="${d}" repeatCount="indefinite"/></g>
     </g>
     <text x="12" y="18" fill="#8b93a7" font-size="10">inicio ⇄ fin</text>
   </svg>`;
