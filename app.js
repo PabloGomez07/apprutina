@@ -511,10 +511,11 @@ function renderSession() {
     }
   });
 
-  // Carrusel de ejercicios: una tarjeta por ejercicio, deslizable.
-  // La tarjeta "en curso" (primera incompleta) queda centrada al renderizar.
-  const cards = entries.filter(e => !e.item.replacedBy);
-  const curIdx = cur ? cards.findIndex(e => e.blockIdx === cur.blockIdx && e.itemIdx === cur.itemIdx) : -1;
+  // Carrusel: SOLO los ejercicios ya hechos + el que está en curso.
+  // Los que faltan van abajo, en la lista "Sigue". Deslizás el carrusel para
+  // revisar "los hechos"; el en curso queda a la vista al renderizar.
+  const isCur = e => cur && e.blockIdx === cur.blockIdx && e.itemIdx === cur.itemIdx;
+  const cards = entries.filter(e => !e.item.replacedBy && (itemComplete(e.item) || isCur(e)));
   currentSession._curRef = cur ? { blockIdx: cur.blockIdx, itemIdx: cur.itemIdx } : null;
 
   if (!cur) {
@@ -522,17 +523,17 @@ function renderSession() {
   }
 
   if (cards.length) {
-    const posLabel = cur
-      ? `Ejercicio ${curIdx + 1} de ${cards.length} · deslizá para ver el resto`
-      : `${cards.length} ejercicios · deslizá para revisar`;
-    html += `<div class="carousel-hint">${posLabel}</div>`;
+    const hechos = cards.filter(e => !isCur(e)).length;
+    if (hechos > 0) {
+      html += `<div class="carousel-hint">Deslizá para ver los hechos</div>`;
+    }
     html += `<div class="ex-carousel" id="exCarousel">`;
     cards.forEach((e) => {
       const { block, item, blockIdx, itemIdx } = e;
       const total = seriesTarget(item);
       const marked = seriesMarked(item);
       const complete = itemComplete(item);
-      const isCurrent = cur && blockIdx === cur.blockIdx && itemIdx === cur.itemIdx;
+      const isCurrent = isCur(e);
       const canSwap = !block.isRunning;
       const rest = block.isRunning ? '1:30' : '2:00';
       let btns = '';
@@ -542,6 +543,8 @@ function renderSession() {
       }
       const eyebrow = complete ? `✓ Hecho · ${entryZoneLabel(block, item)}`
         : (isCurrent ? `Ahora · ${entryZoneLabel(block, item)}` : entryZoneLabel(block, item));
+      const equip = item.equipment ? `${item.equipment} · ` : '';
+      const contador = marked === 0 ? `Arranca en 0 de ${total}` : `${marked} de ${total} series`;
       html += `<div class="ex-card ${isCurrent ? 'current' : ''} ${complete ? 'complete' : ''}" data-b="${blockIdx}" data-i="${itemIdx}">
         <div class="now-top">
           <div class="eyebrow accent">${eyebrow}</div>
@@ -551,15 +554,52 @@ function renderSession() {
           </div>
         </div>
         <div class="now-name">${item.name}</div>
-        <div class="now-presc">${item.detail}</div>
+        <div class="now-presc">${equip}${item.detail}</div>
         <div class="series-row">${btns}</div>
         <div class="rest-row">
-          <div class="rest-txt">Descanso <strong>${rest}</strong></div>
-          <button class="rest-btn" data-rest="${block.isRunning ? 90 : 120}">▶ Iniciar descanso</button>
+          <div class="rest-txt">${contador}</div>
+          <button class="rest-btn" data-rest="${block.isRunning ? 90 : 120}">▶ Iniciar descanso ${rest}</button>
         </div>
       </div>`;
     });
     html += `</div>`;
+  }
+
+  // "Sigue": los ejercicios que faltan (ni el en curso ni los ya hechos).
+  // Gimnasio individual; los bloques articulares se agrupan en una fila.
+  const upcoming = entries.filter(e => !isCur(e) && !itemComplete(e.item) && !e.item.replacedBy);
+  if (upcoming.length) {
+    html += `<div class="section"><div class="eyebrow">Sigue</div><div class="up-list" style="margin-top:10px">`;
+    currentSession.blocks.forEach((block, bi) => {
+      const pend = upcoming.filter(e => e.blockIdx === bi);
+      if (!pend.length) return;
+      if (block.isRunning) {
+        const fd = pend.reduce((a, e) => a + seriesMarked(e.item), 0);
+        const ft = pend.reduce((a, e) => a + seriesTarget(e.item), 0);
+        const fixed = block.isFixed;
+        html += `<div class="up-row ${fixed ? 'fixed' : ''}">
+          <div class="up-main">
+            <div class="up-name">${block.emoji} ${fixed ? 'Base articular + abdomen' : 'Calentamiento reactivo'}</div>
+            <div class="up-meta">${pend.length} ejercicios · ${fixed ? 'no se recorta' : 'antes de las pesas'}</div>
+          </div>
+          <div class="up-count">${fd}/${ft}</div>
+        </div>`;
+      } else {
+        const g = EXERCISE_DB.groups[block.key];
+        pend.forEach(e => {
+          const musc = g ? g.label : block.label;
+          const equip = e.item.equipment ? e.item.equipment + ' · ' : '';
+          html += `<div class="up-row">
+            <div class="up-main">
+              <div class="up-name">${e.item.name}</div>
+              <div class="up-meta">${equip}${musc} · ${e.item.detail}</div>
+            </div>
+            <div class="up-count">${seriesMarked(e.item)}/${seriesTarget(e.item)}</div>
+          </div>`;
+        });
+      }
+    });
+    html += `</div></div>`;
   }
 
   // cierre
