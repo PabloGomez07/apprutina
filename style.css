@@ -287,6 +287,44 @@ h1, h2, h3 { text-wrap: pretty; }
 }
 .rest-btn.running { border-color: var(--accent); color: var(--accent); }
 
+/* carrusel de ejercicios */
+.carousel-hint { font-size: 0.75rem; color: var(--muted); text-align: center; margin: 2px 0 8px; }
+.sess-done-banner {
+  background: rgba(51,193,122,0.14);
+  border: 1px solid var(--ok);
+  color: var(--ok-text);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 0.85rem;
+  margin-bottom: 12px;
+}
+.ex-carousel {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 2px 0 8px;
+  /* el padding lateral deja "asomar" la tarjeta siguiente */
+  scroll-padding-left: 0;
+}
+.ex-carousel::-webkit-scrollbar { display: none; }
+.ex-card {
+  /* box-sizing: border-box global — el padding entra dentro del 87% */
+  flex: 0 0 87%;
+  scroll-snap-align: start;
+  background: linear-gradient(160deg, #1b2440 0%, var(--panel) 70%);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px;
+  opacity: 0.72;
+  transition: opacity .2s, border-color .2s;
+}
+.ex-card.current { opacity: 1; border-color: var(--border-hi); }
+.ex-card.complete { opacity: 0.6; }
+.ex-card.complete.current { opacity: 1; }
+
 /* lista "Sigue" */
 .up-list { display: flex; flex-direction: column; gap: 8px; }
 .up-row {

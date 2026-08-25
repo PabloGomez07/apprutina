@@ -511,80 +511,55 @@ function renderSession() {
     }
   });
 
-  // tarjeta del ejercicio en curso
-  if (cur) {
-    const { block, item, blockIdx, itemIdx } = cur;
-    const total = seriesTarget(item);
-    const marked = seriesMarked(item);
-    const canSwap = !block.isRunning;
-    const presc = item.detail;
-    const rest = block.isRunning ? '1:30' : '2:00';
-    let btns = '';
-    for (let s = 0; s < total; s++) {
-      const cls = s < marked ? 'done' : (s === marked ? 'current' : '');
-      btns += `<button class="series-btn ${cls}" data-set="${s}">${s + 1}</button>`;
-    }
-    html += `<div class="now-card">
-      <div class="now-top">
-        <div class="eyebrow accent">Ahora · ${entryZoneLabel(block, item)}</div>
-        <div class="now-actions">
-          <button class="icon-btn" id="nowFicha" title="Ver ficha">👁</button>
-          ${canSwap ? '<button class="icon-btn" id="nowSwap" title="Cambiar ejercicio">⇄</button>' : ''}
-        </div>
-      </div>
-      <div class="now-name">${item.name}</div>
-      <div class="now-presc">${presc}</div>
-      <div class="series-row" id="seriesRow">${btns}</div>
-      <div class="rest-row">
-        <div class="rest-txt">Descanso sugerido <strong>${rest}</strong></div>
-        <button class="rest-btn" id="restBtn">▶ Iniciar descanso</button>
-      </div>
-    </div>`;
-    currentSession._curRef = { blockIdx, itemIdx };
-  } else {
-    html += `<div class="now-card"><div class="eyebrow accent">Listo</div>
-      <div class="now-name">¡Completaste todas las series!</div>
-      <div class="now-presc">Guardá la sesión abajo.</div></div>`;
-    currentSession._curRef = null;
+  // Carrusel de ejercicios: una tarjeta por ejercicio, deslizable.
+  // La tarjeta "en curso" (primera incompleta) queda centrada al renderizar.
+  const cards = entries.filter(e => !e.item.replacedBy);
+  const curIdx = cur ? cards.findIndex(e => e.blockIdx === cur.blockIdx && e.itemIdx === cur.itemIdx) : -1;
+  currentSession._curRef = cur ? { blockIdx: cur.blockIdx, itemIdx: cur.itemIdx } : null;
+
+  if (!cur) {
+    html += `<div class="sess-done-banner">✅ ¡Completaste todas las series! Guardá la sesión abajo.</div>`;
   }
 
-  // "Sigue": los ejercicios de gimnasio van individuales; los bloques
-  // articulares (calentamiento y base fija) se agregan en una sola fila.
-  const isCur = e => cur && e.blockIdx === cur.blockIdx && e.itemIdx === cur.itemIdx;
-  const upcoming = entries.filter(e => !isCur(e) && !itemComplete(e.item) && !e.item.replacedBy);
-  if (upcoming.length) {
-    html += `<div class="section"><div class="eyebrow">Sigue</div><div class="up-list" style="margin-top:10px">`;
-    // recorrer bloques en orden para no romper la secuencia
-    currentSession.blocks.forEach((block, bi) => {
-      const pend = upcoming.filter(e => e.blockIdx === bi);
-      if (!pend.length) return;
-      if (block.isRunning) {
-        const fd = pend.reduce((a, e) => a + seriesMarked(e.item), 0);
-        const ft = pend.reduce((a, e) => a + seriesTarget(e.item), 0);
-        const fixed = block.isFixed;
-        html += `<div class="up-row ${fixed ? 'fixed' : ''}">
-          <div class="up-main">
-            <div class="up-name">${block.emoji} ${fixed ? 'Base articular + abdomen' : 'Calentamiento reactivo'}</div>
-            <div class="up-meta">${pend.length} ejercicios · ${fixed ? 'no se recorta' : 'antes de las pesas'}</div>
-          </div>
-          <div class="up-count">${fd}/${ft}</div>
-        </div>`;
-      } else {
-        const g = EXERCISE_DB.groups[block.key];
-        pend.forEach(e => {
-          const musc = g ? g.label : block.label;
-          const equip = e.item.equipment ? e.item.equipment + ' · ' : '';
-          html += `<div class="up-row">
-            <div class="up-main">
-              <div class="up-name">${e.item.name}</div>
-              <div class="up-meta">${equip}${musc} · ${e.item.detail}</div>
-            </div>
-            <div class="up-count">${seriesMarked(e.item)}/${seriesTarget(e.item)}</div>
-          </div>`;
-        });
+  if (cards.length) {
+    const posLabel = cur
+      ? `Ejercicio ${curIdx + 1} de ${cards.length} · deslizá para ver el resto`
+      : `${cards.length} ejercicios · deslizá para revisar`;
+    html += `<div class="carousel-hint">${posLabel}</div>`;
+    html += `<div class="ex-carousel" id="exCarousel">`;
+    cards.forEach((e) => {
+      const { block, item, blockIdx, itemIdx } = e;
+      const total = seriesTarget(item);
+      const marked = seriesMarked(item);
+      const complete = itemComplete(item);
+      const isCurrent = cur && blockIdx === cur.blockIdx && itemIdx === cur.itemIdx;
+      const canSwap = !block.isRunning;
+      const rest = block.isRunning ? '1:30' : '2:00';
+      let btns = '';
+      for (let s = 0; s < total; s++) {
+        const cls = s < marked ? 'done' : (s === marked && isCurrent ? 'current' : '');
+        btns += `<button class="series-btn ${cls}" data-set="${s}">${s + 1}</button>`;
       }
+      const eyebrow = complete ? `✓ Hecho · ${entryZoneLabel(block, item)}`
+        : (isCurrent ? `Ahora · ${entryZoneLabel(block, item)}` : entryZoneLabel(block, item));
+      html += `<div class="ex-card ${isCurrent ? 'current' : ''} ${complete ? 'complete' : ''}" data-b="${blockIdx}" data-i="${itemIdx}">
+        <div class="now-top">
+          <div class="eyebrow accent">${eyebrow}</div>
+          <div class="now-actions">
+            <button class="icon-btn card-ficha" title="Ver ficha">👁</button>
+            ${canSwap ? '<button class="icon-btn card-swap" title="Cambiar ejercicio">⇄</button>' : ''}
+          </div>
+        </div>
+        <div class="now-name">${item.name}</div>
+        <div class="now-presc">${item.detail}</div>
+        <div class="series-row">${btns}</div>
+        <div class="rest-row">
+          <div class="rest-txt">Descanso <strong>${rest}</strong></div>
+          <button class="rest-btn" data-rest="${block.isRunning ? 90 : 120}">▶ Iniciar descanso</button>
+        </div>
+      </div>`;
     });
-    html += `</div></div>`;
+    html += `</div>`;
   }
 
   // cierre
@@ -600,12 +575,14 @@ function renderSession() {
 }
 
 function bindSession() {
-  const cur = currentSession._curRef;
-  const seriesRow = document.getElementById('seriesRow');
-  if (seriesRow && cur) {
-    const item = currentSession.blocks[cur.blockIdx].items[cur.itemIdx];
+  // cada tarjeta del carrusel maneja sus propios controles
+  document.querySelectorAll('.ex-card').forEach(card => {
+    const bi = parseInt(card.dataset.b, 10);
+    const ii = parseInt(card.dataset.i, 10);
+    const item = currentSession.blocks[bi].items[ii];
     const total = seriesTarget(item);
-    seriesRow.querySelectorAll('.series-btn').forEach(btn => {
+
+    card.querySelectorAll('.series-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const s = parseInt(btn.dataset.set, 10);
         item.setsDone = (seriesMarked(item) === s + 1) ? s : s + 1;
@@ -616,17 +593,22 @@ function bindSession() {
         renderSession();
       });
     });
+    const fichaBtn = card.querySelector('.card-ficha');
+    if (fichaBtn) fichaBtn.addEventListener('click', () => openFicha(bi, ii));
+    const swapBtn = card.querySelector('.card-swap');
+    if (swapBtn) swapBtn.addEventListener('click', () => openSwap(bi, ii));
+    const restBtn = card.querySelector('.rest-btn');
+    if (restBtn) restBtn.addEventListener('click', () => startRest(parseInt(restBtn.dataset.rest, 10), item.name, restBtn));
+  });
+
+  // trampa del scrollLeft inicial: hay que fijarlo DESPUÉS de tener layout,
+  // no en el HTML. Centra la tarjeta en curso sin animación.
+  const carousel = document.getElementById('exCarousel');
+  const curCard = carousel && carousel.querySelector('.ex-card.current');
+  if (carousel && curCard) {
+    carousel.scrollLeft = curCard.offsetLeft - carousel.offsetLeft;
   }
-  const fichaBtn = document.getElementById('nowFicha');
-  if (fichaBtn && cur) fichaBtn.addEventListener('click', () => openFicha(cur.blockIdx, cur.itemIdx));
-  const swapBtn = document.getElementById('nowSwap');
-  if (swapBtn && cur) swapBtn.addEventListener('click', () => openSwap(cur.blockIdx, cur.itemIdx));
-  const restBtn = document.getElementById('restBtn');
-  if (restBtn && cur) {
-    const item = currentSession.blocks[cur.blockIdx].items[cur.itemIdx];
-    const block = currentSession.blocks[cur.blockIdx];
-    restBtn.addEventListener('click', () => startRest(block.isRunning ? 90 : 120, item.name, restBtn));
-  }
+
   document.getElementById('btnTerminar').addEventListener('click', guardarSesion);
   document.getElementById('btnCancelarSesion').addEventListener('click', () => {
     if (!confirm('¿Cancelar la sesión? Se pierden las series marcadas.')) return;
@@ -638,6 +620,14 @@ function bindSession() {
   });
 }
 
+// Cronómetro de la sesión: M:SS hasta la hora, luego H:MM h.
+// Evita el bug de mostrar "70:12" a los 70 minutos.
+function fmtSessTime(s) {
+  if (s < 3600) return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  return `${h}:${String(m).padStart(2, '0')} h`;
+}
+
 function startSessionTimer() {
   const el = document.getElementById('sessTimer');
   if (!el || !currentSession) return;
@@ -645,27 +635,75 @@ function startSessionTimer() {
   const tick = () => {
     const now = document.getElementById('sessTimer');
     if (!now || !currentSession) return;
-    const s = Math.floor((Date.now() - started) / 1000);
-    now.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    now.textContent = fmtSessTime(Math.floor((Date.now() - started) / 1000));
   };
   tick();
   if (state._sessTick) clearInterval(state._sessTick);
   state._sessTick = setInterval(tick, 1000);
 }
 
+// --- Audio de la chicharra ---
+// El AudioContext debe crearse/reanudarse dentro de un gesto del usuario
+// (política de autoplay). startRest sale de un click, así que lo preparamos ahí.
+let _audioCtx = null;
+function ensureAudio() {
+  try {
+    if (!_audioCtx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) _audioCtx = new AC();
+    }
+    if (_audioCtx && _audioCtx.state === 'suspended') _audioCtx.resume().catch(() => {});
+  } catch (e) { _audioCtx = null; }
+  return _audioCtx;
+}
+
+// Beep de dos tonos con envolvente suave, a través de un compresor para que
+// no sature ni haga "click". Más vibración del teléfono.
+function playBuzzer() {
+  const ctx = ensureAudio();
+  if (ctx) {
+    try {
+      const comp = ctx.createDynamicsCompressor();
+      comp.connect(ctx.destination);
+      const t0 = ctx.currentTime;
+      [[880, 0], [1320, 0.19]].forEach(([freq, offset]) => {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.value = freq;
+        const t = t0 + offset;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.45, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.17);
+        osc.connect(g); g.connect(comp);
+        osc.start(t); osc.stop(t + 0.19);
+      });
+    } catch (e) {}
+  }
+  try { if (navigator.vibrate) navigator.vibrate([200, 90, 200]); } catch (e) {}
+}
+
+// Descanso basado en timestamp: sigue siendo exacto aunque el navegador
+// ralentice el setInterval con la pantalla apagada o la app en segundo plano.
 function startRest(secs, name, btn) {
   stopRest();
-  state.restTimer = { name, secondsLeft: secs };
+  ensureAudio(); // preparar el audio dentro del gesto del click
+  state.restTimer = { name, endAt: Date.now() + secs * 1000, buzzed: false };
   const update = () => {
     if (!state.restTimer) return;
-    const s = state.restTimer.secondsLeft;
+    const s = Math.max(0, Math.round((state.restTimer.endAt - Date.now()) / 1000));
+    if (s <= 0) {
+      if (!state.restTimer.buzzed) { state.restTimer.buzzed = true; playBuzzer(); }
+      btn.textContent = '✓ Descanso listo';
+      btn.classList.remove('running');
+      stopRest();
+      return;
+    }
     btn.textContent = `⏱ ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
     btn.classList.add('running');
-    if (s <= 0) { stopRest(); btn.textContent = '✓ Descanso listo'; btn.classList.remove('running'); return; }
-    state.restTimer.secondsLeft--;
   };
   update();
-  state.restInterval = setInterval(update, 1000);
+  state.restInterval = setInterval(update, 250);
 }
 function stopRest() {
   if (state.restInterval) clearInterval(state.restInterval);
