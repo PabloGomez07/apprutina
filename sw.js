@@ -1,6 +1,6 @@
 // Con el shell en network-first ya no hace falta subir esto en cada deploy:
 // sirve para purgar de una las copias viejas cuando cambia la lista de assets.
-const CACHE = 'apprutina-v17';
+const CACHE = 'apprutina-v18';
 const ASSETS = [
   './',
   './index.html',

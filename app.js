@@ -749,8 +749,12 @@ function bindSession() {
       btn.addEventListener('click', () => {
         const s = parseInt(btn.dataset.set, 10);
         const eraCompleto = itemComplete(item);
-        item.setsDone = (seriesMarked(item) === s + 1) ? s : s + 1;
+        const antes = seriesMarked(item);
+        item.setsDone = (antes === s + 1) ? s : s + 1;
         item.done = item.setsDone >= total;
+        // Marcar una serie arranca el descanso solo (el click es el gesto que
+        // habilita el audio). Desmarcar lo corta.
+        const marcando = item.setsDone > antes;
         btn.classList.add('pressed');
         setTimeout(() => btn.classList.remove('pressed'), 90);
         store.current = currentSession;
@@ -765,6 +769,8 @@ function bindSession() {
         } else {
           renderSession();
         }
+        if (marcando) startRest(currentSession.blocks[bi].isRunning ? 90 : 120, bi, ii);
+        else cancelRest();
       });
     });
     const fichaBtn = card.querySelector('.card-ficha');
@@ -842,30 +848,57 @@ function ensureAudio() {
   return _audioCtx;
 }
 
-// Beep de dos tonos con envolvente suave, a través de un compresor para que
-// no sature ni haga "click". Más vibración del teléfono.
+// Chicharra: 4 pulsos agudos, fuerte.
+// Lo que la hacía casi inaudible en el teléfono:
+//  - 880 Hz con onda triangular: el parlante del celular casi no rinde ahí y
+//    la triangular tiene pocos armónicos. Ahora va en 2.4/1.8 kHz con onda
+//    cuadrada + octava, que es donde el oído y el parlante rinden más.
+//  - el compresor con valores por defecto (umbral -24 dB, ratio 12) aplastaba
+//    todo el pico. Ahora se usa como limitador (umbral -3 dB) para poder subir
+//    el volumen al máximo sin que sature.
+//  - un solo bip de 0.4 s se perdía en el gimnasio: son 4 pulsos, ~1 segundo.
 function playBuzzer() {
   const ctx = ensureAudio();
   if (ctx) {
-    try {
-      const comp = ctx.createDynamicsCompressor();
-      comp.connect(ctx.destination);
-      const t0 = ctx.currentTime;
-      [[880, 0], [1320, 0.19]].forEach(([freq, offset]) => {
-        const osc = ctx.createOscillator();
-        const g = ctx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.value = freq;
-        const t = t0 + offset;
-        g.gain.setValueAtTime(0.0001, t);
-        g.gain.exponentialRampToValueAtTime(0.45, t + 0.02);
-        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.17);
-        osc.connect(g); g.connect(comp);
-        osc.start(t); osc.stop(t + 0.19);
-      });
-    } catch (e) {}
+    const sonar = () => {
+      try {
+        const limiter = ctx.createDynamicsCompressor();
+        limiter.threshold.value = -3;
+        limiter.knee.value = 0;
+        limiter.ratio.value = 20;
+        limiter.attack.value = 0.003;
+        limiter.release.value = 0.1;
+        const master = ctx.createGain();
+        master.gain.value = 1;
+        master.connect(limiter);
+        limiter.connect(ctx.destination);
+
+        const PULSOS = 4, DUR = 0.16, GAP = 0.09;
+        const t0 = ctx.currentTime + 0.03;
+        for (let p = 0; p < PULSOS; p++) {
+          const t = t0 + p * (DUR + GAP);
+          const base = p % 2 === 0 ? 2400 : 1800;
+          [[base, 'square', 0.55], [base * 2, 'triangle', 0.3]].forEach(([freq, tipo, vol]) => {
+            const osc = ctx.createOscillator();
+            const g = ctx.createGain();
+            osc.type = tipo;
+            osc.frequency.value = freq;
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime(vol, t + 0.008);
+            g.gain.setValueAtTime(vol, t + DUR - 0.025);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + DUR);
+            osc.connect(g); g.connect(master);
+            osc.start(t); osc.stop(t + DUR + 0.02);
+          });
+        }
+      } catch (e) {}
+    };
+    // Si la pantalla estuvo apagada el contexto puede quedar suspendido: hay
+    // que esperar el resume, si no se programan los pulsos en un reloj parado.
+    if (ctx.state === 'suspended') ctx.resume().then(sonar).catch(() => {});
+    else sonar();
   }
-  try { if (navigator.vibrate) navigator.vibrate([200, 90, 200]); } catch (e) {}
+  try { if (navigator.vibrate) navigator.vibrate([300, 120, 300, 120, 300, 120, 500]); } catch (e) {}
 }
 
 // Descanso basado en timestamp: sigue siendo exacto aunque el navegador
@@ -910,6 +943,18 @@ function stopRest() {
   if (state.restInterval) clearInterval(state.restInterval);
   state.restInterval = null;
   state.restTimer = null;
+}
+
+// Cortar el descanso a mano (desmarcar una serie): además de frenar el reloj
+// hay que devolverle al botón su texto, si no queda con la cuenta congelada.
+function cancelRest() {
+  const btn = restButton();
+  stopRest();
+  if (btn) {
+    const s = parseInt(btn.dataset.rest, 10) || 0;
+    btn.textContent = `▶ Iniciar descanso ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    btn.classList.remove('running');
+  }
 }
 
 function guardarSesion() {
