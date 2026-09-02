@@ -382,3 +382,156 @@ function patternFor(name, groupKey) {
   if (groupKey === 'ABDUCTOR') return 'abductor';
   return null;
 }
+
+// ================= GIFS REALES DE EJERCICIOS =================
+// GIF de demostración por patrón de movimiento. Reemplaza al muñeco animado SVG
+// cuando existe media real. Fuente: dataset hasaneyldrm/exercises-dataset
+// (github.com/hasaneyldrm/exercises-dataset) — media © Gym visual (gymvisual.com).
+// Cada patrón usa un ejercicio representativo del dataset; principal/sinergistas
+// salen de target + secondary_muscles, traducidos al español.
+// Patrones sin GIF (tibial, bird_dog, mov_9090, foot_core, pogo) conservan el SVG.
+const EXERCISE_GIFS = {
+  sentadilla: { gif: 'videos/0043-qXTaZnJ.gif', ficha: '0043', principal: 'Glúteos', sinergistas: ['Cuádriceps', 'Isquiotibiales', 'Gemelos', 'Core'] }, // barbell full squat
+  prensa: { gif: 'videos/0739-10Z2DXU.gif', ficha: '0739', principal: 'Glúteos', sinergistas: ['Cuádriceps', 'Isquiotibiales', 'Gemelos'] }, // sled 45° leg press
+  estocada: { gif: 'videos/0336-RRWFUcw.gif', ficha: '0336', principal: 'Glúteos', sinergistas: ['Cuádriceps', 'Isquiotibiales', 'Gemelos'] }, // dumbbell lunge
+  step_up: { gif: 'videos/0431-aXtJhlg.gif', ficha: '0431', principal: 'Glúteos', sinergistas: ['Cuádriceps', 'Isquiotibiales', 'Gemelos'] }, // dumbbell step-up
+  cuadricera: { gif: 'videos/0585-my33uHU.gif', ficha: '0585', principal: 'Cuádriceps', sinergistas: ['Isquiotibiales'] }, // lever leg extension
+  curl_fem: { gif: 'videos/0586-17lJ1kr.gif', ficha: '0586', principal: 'Isquiotibiales', sinergistas: ['Gemelos'] }, // lever lying leg curl
+  peso_muerto: { gif: 'videos/0032-ila4NZS.gif', ficha: '0032', principal: 'Glúteos', sinergistas: ['Isquiotibiales', 'Lumbares'] }, // barbell deadlift
+  hip_thrust: { gif: 'videos/1409-qKBpF7I.gif', ficha: '1409', principal: 'Glúteos', sinergistas: ['Isquiotibiales', 'Lumbares'] }, // barbell glute bridge
+  gemelos: { gif: 'videos/0605-ykUOVze.gif', ficha: '0605', principal: 'Gemelos', sinergistas: ['Sóleo', 'Estabilizadores de tobillo'] }, // lever standing calf raise
+  abductor: { gif: 'videos/0597-CHpahtl.gif', ficha: '0597', principal: 'Abductores', sinergistas: ['Glúteos', 'Isquiotibiales'] }, // lever seated hip abduction
+  press_plano: { gif: 'videos/0025-EIeI8Vf.gif', ficha: '0025', principal: 'Pectorales', sinergistas: ['Tríceps', 'Hombros'] }, // barbell bench press
+  press_incl: { gif: 'videos/0047-3TZduzM.gif', ficha: '0047', principal: 'Pectorales', sinergistas: ['Hombros', 'Tríceps'] }, // barbell incline bench press
+  press_decl: { gif: 'videos/0033-GrO65fd.gif', ficha: '0033', principal: 'Pectorales', sinergistas: ['Tríceps', 'Hombros'] }, // barbell decline bench press
+  cruce: { gif: 'videos/0179-FVmZVhk.gif', ficha: '0179', principal: 'Pectorales', sinergistas: ['Deltoides', 'Tríceps'] }, // cable low fly
+  fondos: { gif: 'videos/0251-9WTm7dq.gif', ficha: '0251', principal: 'Pectorales', sinergistas: ['Tríceps', 'Hombros'] }, // chest dip
+  flexiones: { gif: 'videos/0662-I4hDWkc.gif', ficha: '0662', principal: 'Pectorales', sinergistas: ['Tríceps', 'Deltoides', 'Core'] }, // push-up
+  press_mil: { gif: 'videos/0091-kTbSH9h.gif', ficha: '0091', principal: 'Deltoides', sinergistas: ['Tríceps', 'Espalda alta'] }, // barbell seated overhead press
+  elev_lat: { gif: 'videos/0334-DsgkuIt.gif', ficha: '0334', principal: 'Deltoides', sinergistas: ['Trapecios'] }, // dumbbell lateral raise
+  pajaros: { gif: 'videos/0383-EAs3xL9.gif', ficha: '0383', principal: 'Deltoides', sinergistas: ['Trapecios', 'Romboides'] }, // dumbbell reverse fly
+  dominada: { gif: 'videos/0652-lBDjFxJ.gif', ficha: '0652', principal: 'Dorsales', sinergistas: ['Bíceps', 'Antebrazos'] }, // pull-up
+  jalon: { gif: 'videos/2330-LEprlgG.gif', ficha: '2330', principal: 'Dorsales', sinergistas: ['Bíceps', 'Romboides', 'Deltoides posterior'] }, // cable lat pulldown
+  remo_incl: { gif: 'videos/0027-eZyBC3j.gif', ficha: '0027', principal: 'Espalda alta', sinergistas: ['Bíceps', 'Antebrazos'] }, // barbell bent over row
+  remo_sentado: { gif: 'videos/0861-fUBheHs.gif', ficha: '0861', principal: 'Espalda alta', sinergistas: ['Bíceps', 'Antebrazos'] }, // cable seated row
+  remo_vert: { gif: 'videos/0120-UDlhcO8.gif', ficha: '0120', principal: 'Deltoides', sinergistas: ['Trapecios', 'Bíceps'] }, // barbell upright row
+  pullover: { gif: 'videos/0073-i6LWjok.gif', ficha: '0073', principal: 'Dorsales', sinergistas: ['Pecho', 'Tríceps'] }, // barbell pullover
+  curl: { gif: 'videos/0294-NbVPDMW.gif', ficha: '0294', principal: 'Bíceps', sinergistas: ['Antebrazos'] }, // dumbbell biceps curl
+  frances: { gif: 'videos/0061-iZop9xO.gif', ficha: '0061', principal: 'Tríceps', sinergistas: ['Hombros'] }, // barbell lying triceps extension
+  ext_polea: { gif: 'videos/0241-gAwDzB3.gif', ficha: '0241', principal: 'Tríceps', sinergistas: ['Antebrazos'] }, // cable triceps pushdown
+  crunch: { gif: 'videos/0175-WW95auq.gif', ficha: '0175', principal: 'Abdominales', sinergistas: ['Oblicuos'] }, // cable kneeling crunch
+  plancha: { gif: 'videos/0464-CosupLu.gif', ficha: '0464', principal: 'Abdominales', sinergistas: ['Oblicuos', 'Hombros'] }, // front plank
+  pallof: { gif: 'videos/1015-G7PXMlT.gif', ficha: '1015', principal: 'Abdominales', sinergistas: ['Oblicuos', 'Glúteos'] }, // band pallof press
+  dead_bug: { gif: 'videos/0276-iny3m5y.gif', ficha: '0276', principal: 'Abdominales', sinergistas: ['Flexores de cadera', 'Lumbares'] }, // dead bug
+  rueda: { gif: 'videos/0857-NAgVB3t.gif', ficha: '0857', principal: 'Abdominales', sinergistas: ['Lumbares'] }, // wheel rollout
+  ext_tronco: { gif: 'videos/0573-rUXfn3R.gif', ficha: '0573', principal: 'Erectores espinales', sinergistas: ['Glúteos', 'Isquiotibiales'] }, // lever back extension
+  caminata: { gif: 'videos/2133-qPEzJjA.gif', ficha: '2133', principal: 'Cuádriceps', sinergistas: ['Gemelos', 'Antebrazos', 'Core'] }, // farmers walk
+  mov_tobillo: { gif: 'videos/1368-uL9CsKm.gif', ficha: '1368', principal: 'Gemelos', sinergistas: ['Estabilizadores de tobillo'] }, // ankle circles
+};
+
+// GIF exacto por nombre de ejercicio. Tiene prioridad sobre el patrón porque
+// el patrón colapsa variantes de equipo (mancuernas / barra / polea / máquina):
+// p. ej. 'Curl con Barra' y 'Curl de Martillo' comparten patrón 'curl' pero
+// necesitan GIFs distintos. Clave = nombre normalizado (minúsculas, sin tildes).
+const EXERCISE_GIFS_BY_NAME = {
+  'press de banco plano': { gif: 'videos/0025-EIeI8Vf.gif', ficha: '0025', principal: 'Pectorales', sinergistas: ['Tríceps', 'Hombros'] }, // barbell bench press [barbell]
+  'press de banco inclinado': { gif: 'videos/0047-3TZduzM.gif', ficha: '0047', principal: 'Pectorales', sinergistas: ['Hombros', 'Tríceps'] }, // barbell incline bench press [barbell]
+  'press de banco inclinado con mancuernas': { gif: 'videos/0314-ns0SIbU.gif', ficha: '0314', principal: 'Pectorales', sinergistas: ['Hombros', 'Tríceps'] }, // dumbbell incline bench press [dumbbell]
+  'press de banco declinado': { gif: 'videos/0033-GrO65fd.gif', ficha: '0033', principal: 'Pectorales', sinergistas: ['Tríceps', 'Hombros'] }, // barbell decline bench press [barbell]
+  'press de banco declinado con mancuernas': { gif: 'videos/0301-DwhEmmE.gif', ficha: '0301', principal: 'Pectorales', sinergistas: ['Tríceps', 'Hombros'] }, // dumbbell decline bench press [dumbbell]
+  'press con mancuernas': { gif: 'videos/0289-SpYC0Kp.gif', ficha: '0289', principal: 'Pectorales', sinergistas: ['Tríceps', 'Hombros'] }, // dumbbell bench press [dumbbell]
+  'apertura con polea - banco declinado': { gif: 'videos/0158-7saC5zz.gif', ficha: '0158', principal: 'Pectorales', sinergistas: ['Hombros', 'Tríceps'] }, // cable decline fly [cable]
+  'apertura con polea - banco inclinado': { gif: 'videos/0171-tBWXbIT.gif', ficha: '0171', principal: 'Pectorales', sinergistas: ['Deltoides', 'Tríceps'] }, // cable incline fly [cable]
+  'cruce de poleas': { gif: 'videos/0179-FVmZVhk.gif', ficha: '0179', principal: 'Pectorales', sinergistas: ['Deltoides', 'Tríceps'] }, // cable low fly [cable]
+  'frances con barra': { gif: 'videos/0061-iZop9xO.gif', ficha: '0061', principal: 'Tríceps', sinergistas: ['Hombros'] }, // barbell lying triceps extension [barbell]
+  'empuje en banco plano': { gif: 'videos/0030-J6Dx1Mu.gif', ficha: '0030', principal: 'Tríceps', sinergistas: ['Pecho', 'Hombros'] }, // barbell close-grip bench press [barbell]
+  'frances con mancuernas tras nuca': { gif: 'videos/0430-PdmaD0N.gif', ficha: '0430', principal: 'Tríceps', sinergistas: ['Hombros'] }, // dumbbell standing triceps extension [dumbbell]
+  'press frances con mancuernas': { gif: 'videos/0351-mpKZGWz.gif', ficha: '0351', principal: 'Tríceps', sinergistas: ['Hombros'] }, // dumbbell lying triceps extension [dumbbell]
+  'extensiones en polea alta - barra': { gif: 'videos/0241-gAwDzB3.gif', ficha: '0241', principal: 'Tríceps', sinergistas: ['Antebrazos'] }, // cable triceps pushdown (v-bar) [cable]
+  'extensiones en polea alta - soga': { gif: 'videos/0200-dU605di.gif', ficha: '0200', principal: 'Tríceps', sinergistas: ['Antebrazos'] }, // cable pushdown (with rope attachment) [cable]
+  'fondo en paralelas': { gif: 'videos/0251-9WTm7dq.gif', ficha: '0251', principal: 'Pectorales', sinergistas: ['Tríceps', 'Hombros'] }, // chest dip [body weight]
+  'tricep katana': { gif: 'videos/1723-qRZ5S1N.gif', ficha: '1723', principal: 'Tríceps', sinergistas: ['Antebrazos'] }, // cable one arm tricep pushdown [cable]
+  'patada de burro polea': { gif: 'videos/0860-HEJ6DIX.gif', ficha: '0860', principal: 'Tríceps', sinergistas: ['Hombros'] }, // cable kickback [cable]
+  'posteriores en polea': { gif: 'videos/0225-P5p0j8B.gif', ficha: '0225', principal: 'Deltoides', sinergistas: ['Trapecios', 'Romboides', 'Deltoides posterior'] }, // cable standing cross-over high reverse fly [cable]
+  'dominadas en barra': { gif: 'videos/0652-lBDjFxJ.gif', ficha: '0652', principal: 'Dorsales', sinergistas: ['Bíceps', 'Antebrazos'] }, // pull-up [body weight]
+  'tiron agarre ancho en polea': { gif: 'videos/0150-eYnzaCm.gif', ficha: '0150', principal: 'Dorsales', sinergistas: ['Bíceps', 'Romboides', 'Deltoides posterior'] }, // cable bar lateral pulldown [cable]
+  'tiron cerrado en polea alta': { gif: 'videos/0818-rkg41Fb.gif', ficha: '0818', principal: 'Dorsales', sinergistas: ['Bíceps', 'Romboides', 'Deltoides posterior'] }, // twin handle parallel grip lat pulldown [cable]
+  'remo en polea baja': { gif: 'videos/0861-fUBheHs.gif', ficha: '0861', principal: 'Espalda alta', sinergistas: ['Bíceps', 'Antebrazos'] }, // cable seated row [cable]
+  'remo hamer con apoyo central': { gif: 'videos/1350-7I6LNUG.gif', ficha: '1350', principal: 'Espalda alta', sinergistas: ['Bíceps', 'Antebrazos'] }, // lever seated row [leverage machine]
+  'remo con barra': { gif: 'videos/0027-eZyBC3j.gif', ficha: '0027', principal: 'Espalda alta', sinergistas: ['Bíceps', 'Antebrazos'] }, // barbell bent over row [barbell]
+  'barra t': { gif: 'videos/1349-BgljGjd.gif', ficha: '1349', principal: 'Espalda alta', sinergistas: ['Bíceps', 'Antebrazos'] }, // lever reverse t-bar row [leverage machine]
+  'pull-over en polea alta': { gif: 'videos/0199-PskORrA.gif', ficha: '0199', principal: 'Dorsales', sinergistas: ['Tríceps', 'Hombros'] }, // cable pushdown (straight arm) v. 2 [cable]
+  'extension de tronco en banco': { gif: 'videos/0488-zkgRrbK.gif', ficha: '0488', principal: 'Erectores espinales', sinergistas: ['Glúteos', 'Isquiotibiales'] }, // hyperextension (on bench) [body weight]
+  'pajaros en polea': { gif: 'videos/0225-P5p0j8B.gif', ficha: '0225', principal: 'Deltoides', sinergistas: ['Trapecios', 'Romboides', 'Deltoides posterior'] }, // cable standing cross-over high reverse fly [cable]
+  'remo al menton': { gif: 'videos/0120-UDlhcO8.gif', ficha: '0120', principal: 'Deltoides', sinergistas: ['Trapecios', 'Bíceps'] }, // barbell upright row [barbell]
+  'remo foca': { gif: 'videos/1331-9pQSkH8.gif', ficha: '1331', principal: 'Espalda alta', sinergistas: ['Bíceps', 'Antebrazos'] }, // dumbbell reverse grip incline bench two arm row (pecho apoyado) [dumbbell]
+  'remo con mancuernas': { gif: 'videos/0293-BJ0Hz5L.gif', ficha: '0293', principal: 'Espalda alta', sinergistas: ['Bíceps', 'Antebrazos'] }, // dumbbell bent over row [dumbbell]
+  'remo a una mano': { gif: 'videos/0292-C0MA9bC.gif', ficha: '0292', principal: 'Espalda alta', sinergistas: ['Bíceps', 'Antebrazos'] }, // dumbbell one arm bent-over row [dumbbell]
+  'curl con barra w/ olimp': { gif: 'videos/0447-6TG6x2w.gif', ficha: '0447', principal: 'Bíceps', sinergistas: ['Antebrazos'] }, // ez barbell curl [ez barbell]
+  'concentrado con mancuernas': { gif: 'videos/0297-gvsWLQw.gif', ficha: '0297', principal: 'Bíceps', sinergistas: ['Antebrazos'] }, // dumbbell concentration curl [dumbbell]
+  'curl de martillo': { gif: 'videos/0313-slDvUAU.gif', ficha: '0313', principal: 'Bíceps', sinergistas: ['Antebrazos'] }, // dumbbell hammer curl [dumbbell]
+  'banco scott sentado w': { gif: 'videos/1627-hacCyUv.gif', ficha: '1627', principal: 'Bíceps', sinergistas: ['Antebrazos'] }, // ez barbell close grip preacher curl [ez barbell]
+  'banco scott de pie': { gif: 'videos/0070-qOgPVf6.gif', ficha: '0070', principal: 'Bíceps', sinergistas: ['Antebrazos'] }, // barbell preacher curl [barbell]
+  'cruce de poleas enfrentadas': { gif: 'videos/0868-G08RZcQ.gif', ficha: '0868', principal: 'Bíceps', sinergistas: ['Antebrazos'] }, // cable curl [cable]
+  'curl en polea baja - soga': { gif: 'videos/0165-HPlPoQA.gif', ficha: '0165', principal: 'Bíceps', sinergistas: ['Antebrazos'] }, // cable hammer curl (with rope) [cable]
+  'curl de bicep - mancuerna inclinado': { gif: 'videos/0318-ae9UoXQ.gif', ficha: '0318', principal: 'Bíceps', sinergistas: ['Antebrazos'] }, // dumbbell incline curl [dumbbell]
+  'curl de polea - barra': { gif: 'videos/0868-G08RZcQ.gif', ficha: '0868', principal: 'Bíceps', sinergistas: ['Antebrazos'] }, // cable curl [cable]
+  'sentadillas': { gif: 'videos/0043-qXTaZnJ.gif', ficha: '0043', principal: 'Glúteos', sinergistas: ['Cuádriceps', 'Isquiotibiales', 'Gemelos', 'Core'] }, // barbell full squat [barbell]
+  'prensa 45°': { gif: 'videos/0739-10Z2DXU.gif', ficha: '0739', principal: 'Glúteos', sinergistas: ['Cuádriceps', 'Isquiotibiales', 'Gemelos'] }, // sled 45° leg press [sled machine]
+  'estocada con mancuernas': { gif: 'videos/0336-RRWFUcw.gif', ficha: '0336', principal: 'Glúteos', sinergistas: ['Cuádriceps', 'Isquiotibiales', 'Gemelos'] }, // dumbbell lunge [dumbbell]
+  'estocada bulgara': { gif: 'videos/0410-qx4fgX7.gif', ficha: '0410', principal: 'Cuádriceps', sinergistas: ['Glúteos', 'Isquiotibiales', 'Gemelos'] }, // dumbbell single leg split squat [dumbbell]
+  'cuadricera': { gif: 'videos/0585-my33uHU.gif', ficha: '0585', principal: 'Cuádriceps', sinergistas: ['Isquiotibiales'] }, // lever leg extension [leverage machine]
+  'sentadilla frontal': { gif: 'videos/0042-zG0zs85.gif', ficha: '0042', principal: 'Glúteos', sinergistas: ['Cuádriceps', 'Isquiotibiales', 'Gemelos', 'Core'] }, // barbell front squat [barbell]
+  'sentadilla multipower': { gif: 'videos/0770-jFtipLl.gif', ficha: '0770', principal: 'Glúteos', sinergistas: ['Cuádriceps', 'Isquiotibiales', 'Gemelos'] }, // smith squat [smith machine]
+  'en maquina': { gif: 'videos/0597-CHpahtl.gif', ficha: '0597', principal: 'Abductores', sinergistas: ['Glúteos', 'Isquiotibiales'] }, // lever seated hip abduction [leverage machine]
+  'en polea baja': { gif: 'videos/0710-7WaDzyL.gif', ficha: '0710', principal: 'Abductores', sinergistas: ['Glúteos', 'Cuádriceps'] }, // side hip abduction (de pie, como en polea) [body weight]
+  'sentadilla en barra guiada': { gif: 'videos/0770-jFtipLl.gif', ficha: '0770', principal: 'Glúteos', sinergistas: ['Cuádriceps', 'Isquiotibiales', 'Gemelos'] }, // smith squat [smith machine]
+  'peso muerto': { gif: 'videos/0032-ila4NZS.gif', ficha: '0032', principal: 'Glúteos', sinergistas: ['Isquiotibiales', 'Lumbares'] }, // barbell deadlift [barbell]
+  'hip thrust': { gif: 'videos/1409-qKBpF7I.gif', ficha: '1409', principal: 'Glúteos', sinergistas: ['Isquiotibiales', 'Lumbares'] }, // barbell glute bridge [barbell]
+  'isquios en camilla': { gif: 'videos/0586-17lJ1kr.gif', ficha: '0586', principal: 'Isquiotibiales', sinergistas: ['Gemelos'] }, // lever lying leg curl [leverage machine]
+  'isquios de pies': { gif: 'videos/0582-nnmCTLN.gif', ficha: '0582', principal: 'Isquiotibiales', sinergistas: ['Glúteos'] }, // lever kneeling leg curl [leverage machine]
+  'buenos dias': { gif: 'videos/0044-XlZ4lAC.gif', ficha: '0044', principal: 'Isquiotibiales', sinergistas: ['Lumbares'] }, // barbell good morning [barbell]
+  'peso muerto rumano - barra': { gif: 'videos/0085-wQ2c4XD.gif', ficha: '0085', principal: 'Glúteos', sinergistas: ['Isquiotibiales', 'Lumbares'] }, // barbell romanian deadlift [barbell]
+  'peso muerto rumano - mancuernas': { gif: 'videos/1459-rR0LJzx.gif', ficha: '1459', principal: 'Glúteos', sinergistas: ['Isquiotibiales', 'Lumbares'] }, // dumbbell romanian deadlift [dumbbell]
+  'peso muerto rumano': { gif: 'videos/0085-wQ2c4XD.gif', ficha: '0085', principal: 'Glúteos', sinergistas: ['Isquiotibiales', 'Lumbares'] }, // barbell romanian deadlift [barbell]
+  'pie en maquina': { gif: 'videos/0605-ykUOVze.gif', ficha: '0605', principal: 'Gemelos', sinergistas: ['Sóleo', 'Estabilizadores de tobillo'] }, // lever standing calf raise [leverage machine]
+  'extension en prensa': { gif: 'videos/1391-ykHcWme.gif', ficha: '1391', principal: 'Gemelos', sinergistas: ['Isquiotibiales', 'Cuádriceps'] }, // sled calf press on leg press [sled machine]
+  'extension de pie sentado': { gif: 'videos/0594-bOOdeyc.gif', ficha: '0594', principal: 'Gemelos', sinergistas: ['Sóleo', 'Estabilizadores de tobillo'] }, // lever seated calf raise [leverage machine]
+  'press militar con barra': { gif: 'videos/0091-kTbSH9h.gif', ficha: '0091', principal: 'Deltoides', sinergistas: ['Tríceps', 'Espalda alta'] }, // barbell seated overhead press [barbell]
+  'pres frontal con barra': { gif: 'videos/1456-wdRZISl.gif', ficha: '1456', principal: 'Deltoides', sinergistas: ['Tríceps', 'Espalda alta'] }, // barbell standing close grip military press [barbell]
+  'press militar sentado con mancuernas': { gif: 'videos/0405-znQUdHY.gif', ficha: '0405', principal: 'Deltoides', sinergistas: ['Tríceps', 'Espalda alta'] }, // dumbbell seated shoulder press [dumbbell]
+  'arnlod': { gif: 'videos/2137-Xy4jlWA.gif', ficha: '2137', principal: 'Deltoides', sinergistas: ['Tríceps', 'Pecho superior'] }, // dumbbell arnold press [dumbbell]
+  'vuelo lateral de pie': { gif: 'videos/0334-DsgkuIt.gif', ficha: '0334', principal: 'Deltoides', sinergistas: ['Trapecios'] }, // dumbbell lateral raise [dumbbell]
+  'vuelo lateral sentado': { gif: 'videos/0396-hxyTtWj.gif', ficha: '0396', principal: 'Deltoides', sinergistas: ['Trapecios', 'Espalda alta'] }, // dumbbell seated lateral raise [dumbbell]
+  'elevacion lateral polea': { gif: 'videos/0178-goJ6ezq.gif', ficha: '0178', principal: 'Deltoides', sinergistas: ['Trapecios', 'Tríceps'] }, // cable lateral raise [cable]
+  'crunch con disco': { gif: 'videos/0832-s8nrDXF.gif', ficha: '0832', principal: 'Abdominales', sinergistas: ['Oblicuos'] }, // weighted crunch [weighted]
+  'press pallof': { gif: 'videos/0979-9pa4H5m.gif', ficha: '0979', principal: 'Abdominales', sinergistas: ['Oblicuos', 'Glúteos'] }, // band horizontal pallof press [band]
+  'crunch con polea': { gif: 'videos/0175-WW95auq.gif', ficha: '0175', principal: 'Abdominales', sinergistas: ['Oblicuos'] }, // cable kneeling crunch [cable]
+  'plancha': { gif: 'videos/0464-CosupLu.gif', ficha: '0464', principal: 'Abdominales', sinergistas: ['Oblicuos', 'Hombros'] }, // front plank with twist [body weight]
+  'crunch en maquina': { gif: 'videos/1452-Wgaz7pm.gif', ficha: '1452', principal: 'Abdominales', sinergistas: ['Oblicuos'] }, // lever seated crunch [leverage machine]
+  'rueda': { gif: 'videos/0857-NAgVB3t.gif', ficha: '0857', principal: 'Abdominales', sinergistas: ['Lumbares'] }, // wheel rollerout [wheel roller]
+  'sentadilla bulgara': { gif: 'videos/0410-qx4fgX7.gif', ficha: '0410', principal: 'Cuádriceps', sinergistas: ['Glúteos', 'Isquiotibiales', 'Gemelos'] }, // dumbbell single leg split squat [dumbbell]
+  'plancha lateral': { gif: 'videos/3544-5VXmnV5.gif', ficha: '3544', principal: 'Abdominales', sinergistas: ['Oblicuos', 'Hombros'] }, // bodyweight incline side plank [body weight]
+  'soleo en escalon (rodilla flexionada)': { gif: 'videos/0594-bOOdeyc.gif', ficha: '0594', principal: 'Gemelos', sinergistas: ['Sóleo', 'Estabilizadores de tobillo'] }, // lever seated calf raise [leverage machine]
+  'peso muerto (hexagonal o barra)': { gif: 'videos/0811-jQGwmxN.gif', ficha: '0811', principal: 'Glúteos', sinergistas: ['Isquiotibiales', 'Cuádriceps', 'Lumbares'] }, // trap bar deadlift [trap bar]
+  'dominadas o jalon al pecho': { gif: 'videos/0652-lBDjFxJ.gif', ficha: '0652', principal: 'Dorsales', sinergistas: ['Bíceps', 'Antebrazos'] }, // pull-up [body weight]
+  'estocadas hacia atras': { gif: 'videos/0381-SSsBDwB.gif', ficha: '0381', principal: 'Glúteos', sinergistas: ['Cuádriceps', 'Isquiotibiales', 'Gemelos'] }, // dumbbell rear lunge [dumbbell]
+  'press de banca': { gif: 'videos/0025-EIeI8Vf.gif', ficha: '0025', principal: 'Pectorales', sinergistas: ['Tríceps', 'Hombros'] }, // barbell bench press [barbell]
+  'puente de gluteo (1 pierna)': { gif: 'videos/3561-GibBPPg.gif', ficha: '3561', principal: 'Glúteos', sinergistas: ['Isquiotibiales', 'Cuádriceps'] }, // glute bridge march [body weight]
+  'subidas al cajon (step-ups)': { gif: 'videos/0431-aXtJhlg.gif', ficha: '0431', principal: 'Glúteos', sinergistas: ['Cuádriceps', 'Isquiotibiales', 'Gemelos'] }, // dumbbell step-up [dumbbell]
+  'flexiones de brazos': { gif: 'videos/0662-I4hDWkc.gif', ficha: '0662', principal: 'Pectorales', sinergistas: ['Tríceps', 'Deltoides', 'Core'] }, // push-up [body weight]
+  'caminata del granjero': { gif: 'videos/2133-qPEzJjA.gif', ficha: '2133', principal: 'Cuádriceps', sinergistas: ['Gemelos', 'Antebrazos', 'Core'] }, // farmers walk [dumbbell]
+  'movilidad de tobillo': { gif: 'videos/1368-uL9CsKm.gif', ficha: '1368', principal: 'Gemelos', sinergistas: ['Estabilizadores de tobillo'] }, // ankle circles [body weight]
+  'gemelos de pie (rodilla estirada)': { gif: 'videos/0605-ykUOVze.gif', ficha: '0605', principal: 'Gemelos', sinergistas: ['Sóleo', 'Estabilizadores de tobillo'] }, // lever standing calf raise [leverage machine]
+};
+
+function normExName(name) {
+  return name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim().replace(/\s+/g, ' ');
+}
+
+function gifFor(name, groupKey) {
+  const byName = EXERCISE_GIFS_BY_NAME[normExName(name)];
+  if (byName) return byName;
+  const pat = patternFor(name, groupKey);
+  return pat ? (EXERCISE_GIFS[pat] || null) : null;
+}

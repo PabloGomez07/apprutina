@@ -1113,9 +1113,29 @@ function renderFichaContent(block, item) {
   if (state.fichaTab === 'tecnica') {
     const pattern = patternFor(item.name, block.key);
     const def = pattern && ANIMS[pattern];
+    const gif = gifFor(item.name, block.key);
     const dur = state.animPlayback.rate === 0.5 ? 5.2 : 2.6;
     let html = '';
-    if (def) {
+    if (gif) {
+      // GIF real del ejercicio, presentado como "plate" editorial (loop, sin controles)
+      const chips = [
+        `<span class="mchip mchip-main">${gif.principal}</span>`,
+        ...(gif.sinergistas || []).map(m => `<span class="mchip">${m}</span>`),
+      ].join('');
+      html += `<div class="gif-plate">
+        <div class="gif-window">
+          <img class="gif-anim" src="${gif.gif}" alt="${item.name}" width="240" height="240"
+               onerror="this.closest('.gif-plate').classList.add('gif-failed')">
+          <div class="gif-fallback">${item.name}</div>
+        </div>
+      </div>
+      <div class="mchips">${chips}</div>
+      <div class="gif-hairline"></div>
+      <div class="gif-foot">
+        <span class="gif-attr">© Gym visual — gymvisual.com</span>
+        <span class="gif-ficha">Ficha ${gif.ficha}</span>
+      </div>`;
+    } else if (def) {
       html += `<div class="anim-wrap">
         <div id="fichaAnim">${animSVG(def, dur)}</div>
         <div class="anim-ctrl">
@@ -1126,10 +1146,12 @@ function renderFichaContent(block, item) {
           </div>
         </div>
       </div>`;
-      html += '<div class="cues-num">' + def.cues.map((c, i) =>
-        `<div class="cue-item"><div class="cue-num">${i + 1}</div><div class="cue-txt">${c}</div></div>`).join('') + '</div>';
     } else {
       html += '<p class="empty-msg">Sin animación para este ejercicio. Mirá el video para la técnica.</p>';
+    }
+    if (def) {
+      html += '<div class="cues-num">' + def.cues.map((c, i) =>
+        `<div class="cue-item"><div class="cue-num">${i + 1}</div><div class="cue-txt">${c}</div></div>`).join('') + '</div>';
     }
     el.innerHTML = html;
     const svg = el.querySelector('#fichaAnim svg');
