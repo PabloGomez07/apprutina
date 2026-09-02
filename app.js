@@ -1,25 +1,93 @@
 const WEEKDAYS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const RUNNING_KEY = 'RUNNING';
 
+// --- acceso a localStorage a prueba de datos rotos ---
+// Una sola clave ilegible tiraba una excepción en el getter y, como el arranque
+// lee store.current antes del primer render, la app quedaba en negro sin forma
+// de recuperarse desde la UI. Ahora lo ilegible se aparta (no se borra: queda
+// en "<clave>_corrupto" por si se puede rescatar a mano) y se sigue con el
+// valor vacío.
+const esObjeto = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+function apartarCorrupto(key, raw) {
+  console.warn(`AppRutina: "${key}" ilegible. Se aparta en "${key}_corrupto" y se sigue con el valor vacío.`);
+  try {
+    if (localStorage.getItem(key + '_corrupto') === null) localStorage.setItem(key + '_corrupto', raw);
+    localStorage.removeItem(key);
+  } catch (e) { /* sin espacio para el respaldo: igual seguimos */ }
+}
+
+// Un render de Hoy leía el historial 4 veces (días sin entrenar por bloque,
+// por grupo, sesiones de la semana, uso por músculo) y cada lectura volvía a
+// parsear el JSON entero. Se cachea el parseo y se invalida al escribir.
+const _cacheStore = new Map();
+
+function leerJSON(key, vacio, valido) {
+  if (_cacheStore.has(key)) return _cacheStore.get(key);
+  let raw = null;
+  try { raw = localStorage.getItem(key); } catch (e) { return vacio; }
+  let v = vacio;
+  if (raw !== null) {
+    let parsed, ok = true;
+    try { parsed = JSON.parse(raw); } catch (e) { ok = false; }
+    if (ok && !valido(parsed)) ok = false;
+    if (ok) v = parsed;
+    else apartarCorrupto(key, raw);
+  }
+  _cacheStore.set(key, v);
+  return v;
+}
+
+// Escribir también puede fallar (cuota llena, modo privado). Se avisa por
+// consola en vez de tirar dentro de un handler de click y cortar la sesión.
+function guardarJSON(key, valor) {
+  _cacheStore.set(key, valor);
+  try { localStorage.setItem(key, JSON.stringify(valor)); return true; }
+  catch (e) { console.warn(`AppRutina: no se pudo guardar "${key}".`, e); return false; }
+}
+
+// Otra pestaña de la app escribiendo dejaría este caché viejo. El evento
+// storage solo llega a las OTRAS pestañas, que es exactamente lo que hace
+// falta invalidar. key null = alguien hizo localStorage.clear().
+window.addEventListener('storage', (e) => {
+  if (e.key === null) _cacheStore.clear();
+  else _cacheStore.delete(e.key);
+});
+
 const store = {
-  get history() { return JSON.parse(localStorage.getItem('rutina_history') || '[]'); },
-  set history(v) { localStorage.setItem('rutina_history', JSON.stringify(v)); },
-  get rotation() { return JSON.parse(localStorage.getItem('rutina_rotation') || '{}'); },
-  set rotation(v) { localStorage.setItem('rutina_rotation', JSON.stringify(v)); },
-  get current() { return JSON.parse(localStorage.getItem('rutina_current') || 'null'); },
+  get history() { return leerJSON('rutina_history', [], Array.isArray); },
+  set history(v) { guardarJSON('rutina_history', v); },
+  get rotation() { return leerJSON('rutina_rotation', {}, esObjeto); },
+  set rotation(v) { guardarJSON('rutina_rotation', v); },
+  get current() { return leerJSON('rutina_current', null, v => v === null || esObjeto(v)); },
   set current(v) {
-    if (v === null) localStorage.removeItem('rutina_current');
-    else localStorage.setItem('rutina_current', JSON.stringify(v));
+    if (v === null) {
+      _cacheStore.set('rutina_current', null);
+      try { localStorage.removeItem('rutina_current'); } catch (e) {}
+    } else guardarJSON('rutina_current', v);
   },
-  get plan() { return JSON.parse(localStorage.getItem('rutina_plan') || '{"ultimoBloque":0,"sesiones":0}'); },
-  set plan(v) { localStorage.setItem('rutina_plan', JSON.stringify(v)); },
-  get runDays() { return JSON.parse(localStorage.getItem('rutina_rundays') || '{}'); },
-  set runDays(v) { localStorage.setItem('rutina_rundays', JSON.stringify(v)); },
-  get runs() { return JSON.parse(localStorage.getItem('rutina_runs') || '[]'); },
-  set runs(v) { localStorage.setItem('rutina_runs', JSON.stringify(v)); },
-  get lastBackup() { return localStorage.getItem('rutina_last_backup') || null; },
-  set lastBackup(v) { localStorage.setItem('rutina_last_backup', v); },
+  get plan() { return leerJSON('rutina_plan', { ultimoBloque: 0, sesiones: 0 }, esObjeto); },
+  set plan(v) { guardarJSON('rutina_plan', v); },
+  get runDays() { return leerJSON('rutina_rundays', {}, esObjeto); },
+  set runDays(v) { guardarJSON('rutina_rundays', v); },
+  get runs() { return leerJSON('rutina_runs', [], Array.isArray); },
+  set runs(v) { guardarJSON('rutina_runs', v); },
+  get lastBackup() { try { return localStorage.getItem('rutina_last_backup') || null; } catch (e) { return null; } },
+  set lastBackup(v) { try { localStorage.setItem('rutina_last_backup', v); } catch (e) {} },
 };
+
+// Las pantallas se arman con innerHTML. Todo lo que salga de datos guardados
+// (un respaldo importado trae texto arbitrario, y el saneo valida la forma
+// pero no el contenido) pasa por acá antes de entrar al HTML: si no, un
+// nombre de ejercicio con etiquetas se ejecuta al renderizar.
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 // --- fecha: del dispositivo (funciona sin señal en el gimnasio) ---
 function hoy() { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }
@@ -95,12 +163,22 @@ function currentEntry(session) {
   return flatEntries(session).find(e => !itemComplete(e.item)) || null;
 }
 
+// Un cambio por "me molesta algo" puede traer un ejercicio de OTRO grupo
+// muscular (de cuádriceps a femorales, por ejemplo). El bloque sigue siendo el
+// original, así que el músculo real queda en el ítem: todo lo que dependa del
+// músculo —etiqueta, anatomía, volumen— tiene que leerlo de acá y no de
+// block.key. Si el grupo del ítem no existe (respaldo raro), manda el bloque.
+function itemGroupKey(block, item) {
+  const g = item && item.group;
+  return (g && EXERCISE_DB.groups[g]) ? g : block.key;
+}
+
 // etiqueta corta del "grupo" para la tarjeta en curso
 function entryZoneLabel(block, item) {
   if (block.isWarmup) return 'Calentamiento';
   if (block.isFixed) return item.area || 'Base articular';
   if (block.isRunning) return item.area || 'Articular';
-  const g = EXERCISE_DB.groups[block.key];
+  const g = EXERCISE_DB.groups[itemGroupKey(block, item)];
   return g ? g.label : block.label;
 }
 
@@ -225,8 +303,12 @@ function diasSinEntrenarPorGrupo() {
     const d = diasEntre(soloFecha(session.date), h);
     session.blocks.forEach(b => {
       if (b.isRunning) return;
-      if (!b.items.some(i => seriesMarked(i) > 0)) return;
-      if (out[b.key] === null || d < out[b.key]) out[b.key] = d;
+      b.items.forEach(i => {
+        if (seriesMarked(i) <= 0) return;
+        const k = itemGroupKey(b, i);
+        if (!(k in out)) return;   // clave desconocida de un respaldo viejo
+        if (out[k] === null || d < out[k]) out[k] = d;
+      });
     });
   });
   return out;
@@ -258,8 +340,14 @@ function sesionesEstaSemana() {
 
 // ================= NAVEGACIÓN =================
 function go(tab) {
+  stopSessionTimer();   // si seguimos en sesión, renderSession lo vuelve a arrancar
   state.activeTab = tab;
-  document.querySelectorAll('.tab-item').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.querySelectorAll('.tab-item').forEach(t => {
+    const activa = t.dataset.tab === tab;
+    t.classList.toggle('active', activa);
+    if (activa) t.setAttribute('aria-current', 'page');
+    else t.removeAttribute('aria-current');
+  });
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   if (tab === 'hoy') { document.getElementById('screen-hoy').classList.add('active'); renderHoy(); }
   else if (tab === 'historial') { document.getElementById('screen-historial').classList.add('active'); renderHistory(); }
@@ -374,6 +462,7 @@ function renderHoy() {
 
 // ---------- ARMADO MANUAL ----------
 function abrirArmarManual() {
+  stopSessionTimer();
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-armar').classList.add('active');
   renderWeekdayPicker();
@@ -398,10 +487,11 @@ function muscleUsage() {
   const counts = {};
   let total = 0;
   store.history.forEach(session => session.blocks.forEach(block => {
-    const done = block.items.filter(i => seriesMarked(i) > 0).length;
-    if (!done) return;
-    const k = block.isRunning ? RUNNING_KEY : block.key;
-    counts[k] = (counts[k] || 0) + done; total += done;
+    block.items.forEach(i => {
+      if (seriesMarked(i) <= 0) return;
+      const k = block.isRunning ? RUNNING_KEY : itemGroupKey(block, i);
+      counts[k] = (counts[k] || 0) + 1; total += 1;
+    });
   }));
   return { counts, total };
 }
@@ -483,16 +573,18 @@ function renderSession() {
   html += `<div class="sess-header">
     <div class="sess-toprow">
       <div>
-        <div class="eyebrow accent">${bloqueEyebrow}</div>
-        <div class="sess-block-name">${bloqueTitulo}</div>
+        <div class="eyebrow accent">${esc(bloqueEyebrow)}</div>
+        <div class="sess-block-name">${esc(bloqueTitulo)}</div>
       </div>
-      <div class="sess-timer" id="sessTimer">0:00</div>
+      <div class="sess-timer" id="sessTimer" aria-label="Tiempo de la sesión">0:00</div>
     </div>
     <div class="sess-progrow">
-      <div class="sess-bar"><div style="width:${tot.pct}%"></div></div>
+      <div class="sess-bar" role="progressbar" aria-label="Progreso de la sesión"
+           aria-valuemin="0" aria-valuemax="${tot.total}" aria-valuenow="${tot.done}"
+           aria-valuetext="${tot.done} de ${tot.total} series"><div style="width:${tot.pct}%"></div></div>
       <div class="sess-count">${tot.done} / ${tot.total} series</div>
     </div>
-    ${currentSession._recalcNote ? `<div class="sess-recalc">${currentSession._recalcNote}</div>` : ''}
+    ${currentSession._recalcNote ? `<div class="sess-recalc">${esc(currentSession._recalcNote)}</div>` : ''}
   </div>`;
 
   html += '<div class="sess-body">';
@@ -503,7 +595,7 @@ function renderSession() {
       html += `<div class="done-swap">
         <div style="flex-shrink:0">✅</div>
         <div style="flex:1;min-width:0">
-          <div class="ds-name">${e.item.name}</div>
+          <div class="ds-name">${esc(e.item.name)}</div>
           <div class="ds-meta">${seriesMarked(e.item)} series guardadas · cambiado a mitad</div>
         </div>
         <div class="ds-count">${seriesMarked(e.item)}/${seriesTarget(e.item)}</div>
@@ -539,7 +631,8 @@ function renderSession() {
       let btns = '';
       for (let s = 0; s < total; s++) {
         const cls = s < marked ? 'done' : (s === marked && isCurrent ? 'current' : '');
-        btns += `<button class="series-btn ${cls}" data-set="${s}">${s + 1}</button>`;
+        btns += `<button class="series-btn ${cls}" data-set="${s}" aria-pressed="${s < marked}"
+          aria-label="Serie ${s + 1} de ${total} de ${esc(item.name)}">${s + 1}</button>`;
       }
       const eyebrow = complete ? `✓ Hecho · ${entryZoneLabel(block, item)}`
         : (isCurrent ? `Ahora · ${entryZoneLabel(block, item)}` : entryZoneLabel(block, item));
@@ -547,14 +640,16 @@ function renderSession() {
       const contador = marked === 0 ? `Arranca en 0 de ${total}` : `${marked} de ${total} series`;
       html += `<div class="ex-card ${isCurrent ? 'current' : ''} ${complete ? 'complete' : ''}" data-b="${blockIdx}" data-i="${itemIdx}">
         <div class="now-top">
-          <div class="eyebrow accent">${eyebrow}</div>
+          <div class="eyebrow accent">${esc(eyebrow)}</div>
           <div class="now-actions">
-            <button class="icon-btn card-ficha" title="Ver ficha">👁</button>
-            ${canSwap ? '<button class="icon-btn card-swap" title="Cambiar ejercicio">⇄</button>' : ''}
+            <button class="icon-btn card-ficha" title="Ver ficha"
+              aria-label="Ver ficha de ${esc(item.name)}"><span aria-hidden="true">👁</span></button>
+            ${canSwap ? `<button class="icon-btn card-swap" title="Cambiar ejercicio"
+              aria-label="Cambiar ${esc(item.name)}"><span aria-hidden="true">⇄</span></button>` : ''}
           </div>
         </div>
-        <div class="now-name">${item.name}</div>
-        <div class="now-presc">${equip}${item.detail}</div>
+        <div class="now-name">${esc(item.name)}</div>
+        <div class="now-presc">${esc(equip)}${esc(item.detail)}</div>
         <div class="series-row">${btns}</div>
         <div class="rest-row">
           <div class="rest-txt">${contador}</div>
@@ -579,20 +674,20 @@ function renderSession() {
         const fixed = block.isFixed;
         html += `<div class="up-row ${fixed ? 'fixed' : ''}">
           <div class="up-main">
-            <div class="up-name">${block.emoji} ${fixed ? 'Base articular + abdomen' : 'Calentamiento reactivo'}</div>
+            <div class="up-name">${esc(block.emoji)} ${fixed ? 'Base articular + abdomen' : 'Calentamiento reactivo'}</div>
             <div class="up-meta">${pend.length} ejercicios · ${fixed ? 'no se recorta' : 'antes de las pesas'}</div>
           </div>
           <div class="up-count">${fd}/${ft}</div>
         </div>`;
       } else {
-        const g = EXERCISE_DB.groups[block.key];
         pend.forEach(e => {
+          const g = EXERCISE_DB.groups[itemGroupKey(block, e.item)];
           const musc = g ? g.label : block.label;
           const equip = e.item.equipment ? e.item.equipment + ' · ' : '';
           html += `<div class="up-row">
             <div class="up-main">
-              <div class="up-name">${e.item.name}</div>
-              <div class="up-meta">${equip}${musc} · ${e.item.detail}</div>
+              <div class="up-name">${esc(e.item.name)}</div>
+              <div class="up-meta">${esc(equip)}${esc(musc)} · ${esc(e.item.detail)}</div>
             </div>
             <div class="up-count">${seriesMarked(e.item)}/${seriesTarget(e.item)}</div>
           </div>`;
@@ -605,13 +700,41 @@ function renderSession() {
   // cierre
   html += `<div class="sess-close">
     <button class="btn btn-success" id="btnTerminar">Terminar y guardar</button>
-    <button class="btn-cancel" id="btnCancelarSesion">✕</button>
+    <button class="btn-cancel" id="btnCancelarSesion" aria-label="Cancelar la sesión"><span aria-hidden="true">✕</span></button>
   </div>`;
 
   html += '</div>';
   screen.innerHTML = html;
   bindSession();
   startSessionTimer();
+}
+
+// Actualización puntual de una tarjeta y de la barra de progreso, para no
+// reconstruir toda la pantalla en cada toque.
+function pintarSeriesTarjeta(card, item, esActual) {
+  const total = seriesTarget(item);
+  const marked = seriesMarked(item);
+  card.querySelectorAll('.series-btn').forEach((b, s) => {
+    b.classList.toggle('done', s < marked);
+    b.classList.toggle('current', s === marked && esActual);
+    b.setAttribute('aria-pressed', String(s < marked));
+  });
+  const txt = card.querySelector('.rest-txt');
+  if (txt) txt.textContent = marked === 0 ? `Arranca en 0 de ${total}` : `${marked} de ${total} series`;
+}
+
+function pintarProgresoSesion() {
+  const tot = sessionTotals(currentSession);
+  const bar = document.querySelector('.sess-bar');
+  const cnt = document.querySelector('.sess-count');
+  if (bar) {
+    const relleno = bar.firstElementChild;
+    if (relleno) relleno.style.width = tot.pct + '%';
+    bar.setAttribute('aria-valuenow', tot.done);
+    bar.setAttribute('aria-valuemax', tot.total);
+    bar.setAttribute('aria-valuetext', `${tot.done} de ${tot.total} series`);
+  }
+  if (cnt) cnt.textContent = `${tot.done} / ${tot.total} series`;
 }
 
 function bindSession() {
@@ -625,12 +748,23 @@ function bindSession() {
     card.querySelectorAll('.series-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const s = parseInt(btn.dataset.set, 10);
+        const eraCompleto = itemComplete(item);
         item.setsDone = (seriesMarked(item) === s + 1) ? s : s + 1;
         item.done = item.setsDone >= total;
         btn.classList.add('pressed');
         setTimeout(() => btn.classList.remove('pressed'), 90);
         store.current = currentSession;
-        renderSession();
+        // Marcar una serie intermedia no cambia qué tarjetas se muestran ni
+        // cuál está en curso: se actualiza en el lugar en vez de rehacer toda
+        // la pantalla, así no se pierde el scroll del carrusel ni parpadea.
+        // Solo cuando el ejercicio se completa (o se descompleta) cambia la
+        // estructura y hace falta el render entero.
+        if (itemComplete(item) === eraCompleto) {
+          pintarSeriesTarjeta(card, item, true);
+          pintarProgresoSesion();
+        } else {
+          renderSession();
+        }
       });
     });
     const fichaBtn = card.querySelector('.card-ficha');
@@ -638,8 +772,11 @@ function bindSession() {
     const swapBtn = card.querySelector('.card-swap');
     if (swapBtn) swapBtn.addEventListener('click', () => openSwap(bi, ii));
     const restBtn = card.querySelector('.rest-btn');
-    if (restBtn) restBtn.addEventListener('click', () => startRest(parseInt(restBtn.dataset.rest, 10), item.name, restBtn));
+    if (restBtn) restBtn.addEventListener('click', () => startRest(parseInt(restBtn.dataset.rest, 10), bi, ii));
   });
+
+  // si había un descanso corriendo, volver a pintarlo sobre el botón nuevo
+  paintRest();
 
   // trampa del scrollLeft inicial: hay que fijarlo DESPUÉS de tener layout,
   // no en el HTML. Centra la tarjeta en curso sin animación.
@@ -653,6 +790,7 @@ function bindSession() {
   document.getElementById('btnCancelarSesion').addEventListener('click', () => {
     if (!confirm('¿Cancelar la sesión? Se pierden las series marcadas.')) return;
     stopRest();
+    stopSessionTimer();
     currentSession = null;
     store.current = null;
     state.bloqueOverride = null;
@@ -668,17 +806,24 @@ function fmtSessTime(s) {
   return `${h}:${String(m).padStart(2, '0')} h`;
 }
 
+// El intervalo solo se frenaba al guardar: si salías de la sesión (cancelar,
+// cambiar de pestaña, armar otra rutina) seguía corriendo para siempre contra
+// un elemento que ya no existe. Todo lo que deja la vista de sesión lo corta.
+function stopSessionTimer() {
+  if (state._sessTick) { clearInterval(state._sessTick); state._sessTick = null; }
+}
+
 function startSessionTimer() {
   const el = document.getElementById('sessTimer');
   if (!el || !currentSession) return;
   const started = currentSession.startedAt || Date.now();
   const tick = () => {
     const now = document.getElementById('sessTimer');
-    if (!now || !currentSession) return;
+    if (!now || !currentSession) { stopSessionTimer(); return; }
     now.textContent = fmtSessTime(Math.floor((Date.now() - started) / 1000));
   };
   tick();
-  if (state._sessTick) clearInterval(state._sessTick);
+  stopSessionTimer();
   state._sessTick = setInterval(tick, 1000);
 }
 
@@ -725,25 +870,41 @@ function playBuzzer() {
 
 // Descanso basado en timestamp: sigue siendo exacto aunque el navegador
 // ralentice el setInterval con la pantalla apagada o la app en segundo plano.
-function startRest(secs, name, btn) {
-  stopRest();
-  ensureAudio(); // preparar el audio dentro del gesto del click
-  state.restTimer = { name, endAt: Date.now() + secs * 1000, buzzed: false };
-  const update = () => {
-    if (!state.restTimer) return;
-    const s = Math.max(0, Math.round((state.restTimer.endAt - Date.now()) / 1000));
-    if (s <= 0) {
-      if (!state.restTimer.buzzed) { state.restTimer.buzzed = true; playBuzzer(); }
-      btn.textContent = '✓ Descanso listo';
-      btn.classList.remove('running');
-      stopRest();
-      return;
-    }
+//
+// El botón NO se guarda: marcar una serie rehace todo el HTML de la sesión y
+// el nodo quedaba huérfano, así que la cuenta regresiva seguía corriendo
+// invisible. Se guarda a qué ejercicio pertenece y el botón se busca en cada
+// tick, de modo que el descanso reaparece solo después de cada re-render.
+function restButton() {
+  const t = state.restTimer;
+  if (!t) return null;
+  const card = document.querySelector(`.ex-card[data-b="${t.blockIdx}"][data-i="${t.itemIdx}"]`);
+  return card ? card.querySelector('.rest-btn') : null;
+}
+
+function paintRest() {
+  const t = state.restTimer;
+  if (!t) return;
+  const btn = restButton();
+  const s = Math.max(0, Math.round((t.endAt - Date.now()) / 1000));
+  if (s <= 0) {
+    if (!t.buzzed) { t.buzzed = true; playBuzzer(); }
+    if (btn) { btn.textContent = '✓ Descanso listo'; btn.classList.remove('running'); }
+    stopRest();
+    return;
+  }
+  if (btn) {
     btn.textContent = `⏱ ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
     btn.classList.add('running');
-  };
-  update();
-  state.restInterval = setInterval(update, 250);
+  }
+}
+
+function startRest(secs, blockIdx, itemIdx) {
+  stopRest();
+  ensureAudio(); // preparar el audio dentro del gesto del click
+  state.restTimer = { blockIdx, itemIdx, endAt: Date.now() + secs * 1000, buzzed: false };
+  paintRest();
+  state.restInterval = setInterval(paintRest, 250);
 }
 function stopRest() {
   if (state.restInterval) clearInterval(state.restInterval);
@@ -754,7 +915,7 @@ function stopRest() {
 function guardarSesion() {
   if (!currentSession) return;
   stopRest();
-  if (state._sessTick) clearInterval(state._sessTick);
+  stopSessionTimer();
 
   const rotation = store.rotation;
   (currentSession._pendingRotation.checkedGroups || []).forEach(g => advanceGymSlot(rotation, g));
@@ -796,14 +957,16 @@ function displayVariant(ex) { return ex.variants.find(Boolean) || { series: '3',
 
 function candidatosSwap(block, item) {
   const inUse = new Set(block.items.map(i => i.name));
-  const originalPattern = patternFor(item.name, block.key);
+  // si el ítem ya venía de un cambio a otro músculo, se parte de ESE grupo
+  const baseKey = itemGroupKey(block, item);
+  const originalPattern = patternFor(item.name, baseKey);
   const pool = [];
   // mismo grupo
-  const gExs = (EXERCISE_DB.groups[block.key] || { exercises: [] }).exercises;
-  gExs.forEach(ex => { if (!inUse.has(ex.name)) pool.push({ ex, group: block.key }); });
+  const gExs = (EXERCISE_DB.groups[baseKey] || { exercises: [] }).exercises;
+  gExs.forEach(ex => { if (!inUse.has(ex.name)) pool.push({ ex, group: baseKey }); });
   // molestia en pierna: sumar los otros grupos de pierna (puede cambiar el músculo)
-  if (state.swapIntent === 'molestia' && LEG_GROUPS.includes(block.key)) {
-    LEG_GROUPS.filter(k => k !== block.key).forEach(k => {
+  if (state.swapIntent === 'molestia' && LEG_GROUPS.includes(baseKey)) {
+    LEG_GROUPS.filter(k => k !== baseKey).forEach(k => {
       (EXERCISE_DB.groups[k] ? EXERCISE_DB.groups[k].exercises : []).forEach(ex => {
         if (!inUse.has(ex.name)) pool.push({ ex, group: k });
       });
@@ -813,7 +976,7 @@ function candidatosSwap(block, item) {
     const v = displayVariant(p.ex);
     const load = JOINT_LOAD[p.ex.equipment] != null ? JOINT_LOAD[p.ex.equipment] : 2;
     const samePattern = patternFor(p.ex.name, p.group) === originalPattern;
-    const crossMuscle = p.group !== block.key;
+    const crossMuscle = p.group !== baseKey;
     return { ex: p.ex, group: p.group, v, load, samePattern, crossMuscle, equipment: p.ex.equipment };
   });
 
@@ -862,8 +1025,8 @@ function renderSwap() {
     <div class="swap-head">
       <div class="eyebrow">Cambiar · solo por hoy</div>
       <div class="swap-title-row">
-        <div class="swap-name">${item.name}</div>
-        <button class="swap-close" id="swapClose">✕</button>
+        <div class="swap-name">${esc(item.name)}</div>
+        <button class="swap-close" id="swapClose" aria-label="Cerrar"><span aria-hidden="true">✕</span></button>
       </div>
       <div class="intent-btns">
         <button class="intent-btn ocupada ${!molestia ? 'active' : ''}" data-intent="ocupada">Está ocupada</button>
@@ -886,11 +1049,11 @@ function renderSwap() {
     if (best) badge = molestia
       ? '<span class="swap-badge rodilla">menos rodilla</span>'
       : '<span class="swap-badge cerca">más cercano</span>';
-    const cross = r.crossMuscle ? `<div class="swap-item-target">→ ${EXERCISE_DB.groups[r.group].label}</div>` : '';
+    const cross = r.crossMuscle ? `<div class="swap-item-target">→ ${esc(EXERCISE_DB.groups[r.group].label)}</div>` : '';
     html += `<div class="swap-item ${best ? 'best' : ''} ${best && molestia ? 'molestia' : ''} ${disc ? 'discouraged' : ''}" data-i="${i}">
       <div class="swap-item-main">
-        <div class="swap-item-name">${r.ex.name} ${badge}</div>
-        <div class="swap-item-meta">${r.equipment || 'equipo'} · ${r.v.series} series × ${r.v.reps}${qual ? ' · ' + qual : ''}</div>
+        <div class="swap-item-name">${esc(r.ex.name)} ${badge}</div>
+        <div class="swap-item-meta">${esc(r.equipment || 'equipo')} · ${esc(r.v.series)} series × ${esc(r.v.reps)}${qual ? ' · ' + esc(qual) : ''}</div>
       </div>
       ${cross}
     </div>`;
@@ -955,8 +1118,9 @@ const MUSCLE_TRANSFER = {
   Femorales: 'Impulsan la fase de propulsión y protegen la rodilla.',
   Glúteos: 'Motor de la zancada y estabilizador de cadera al correr.',
   Gemelos: 'Rebote del tobillo en cada paso: economía de carrera.',
-  Abductores: 'Estabilizan la cadera y evitan que la rodilla colapse hacia adentro.',
-  Abdomen: 'Transfiere fuerza entre tren superior e inferior; postura al correr.',
+  // las claves tienen que ser el `label` exacto del grupo en data.js
+  'Aductor/Abductor': 'Estabilizan la cadera y evitan que la rodilla colapse hacia adentro.',
+  'Abdomen / Core': 'Transfiere fuerza entre tren superior e inferior; postura al correr.',
 };
 const AREA_TRANSFER = {
   Tobillo: 'Rigidez elástica del tobillo: menos periostitis, más rebote.',
@@ -966,6 +1130,12 @@ const AREA_TRANSFER = {
   Core: 'El core evita que la energía se pierda en cada zancada.',
   'Cadera/Glúteo': 'Cadera estable = rodilla protegida y zancada potente.',
   Abdomen: 'Meta de examen: reps a ritmo, sostenido en toda sesión.',
+  'Cadera/Movilidad': 'Cadera suelta = zancada más larga sin forzar la lumbar.',
+  'Rodilla/Cadera': 'Fuerza a una pierna: así corrés, un apoyo por vez.',
+  'Cadena Posterior': 'El motor de la propulsión; protege isquios y lumbar.',
+  'Pecho/Tríceps': 'Capacidad de examen; además sostiene el braceo sin fatigarse.',
+  Espalda: 'Postura erguida y braceo eficiente en carreras largas.',
+  Accesorio: 'Trabajo general de apoyo: no es específico de la carrera.',
 };
 
 const GROUP_REGIONS = {
@@ -985,6 +1155,11 @@ const AREA_REGIONS = {
   'Cadena Posterior': ['b-ham-l', 'b-ham-r', 'b-glu-l', 'b-glu-r', 'b-low'],
   'Core': ['f-abs', 'b-low'],
   'Cadera/Movilidad': ['f-hip-l', 'f-hip-r', 'b-glu-l', 'b-glu-r'],
+  // áreas del bloque fijo (abdomen de examen y mantenimiento): sin estas
+  // entradas el muñeco quedaba sin marcar ninguna zona
+  'Abdomen': ['f-abs'],
+  'Pecho/Tríceps': ['f-chest'],
+  'Espalda': ['b-upper', 'b-lats', 'b-low'],
   'Accesorio': [],
 };
 
@@ -1034,19 +1209,36 @@ function bodySVGSingle(view, highlights) {
   </svg>`;
 }
 
-// ¿el músculo objetivo está en la frente o la espalda?
-function defaultView(block) {
-  if (block.isRunning) return 'frente';
+// ¿el músculo objetivo está en la frente o la espalda? Se decide por dónde
+// caen las zonas a marcar (los ids van prefijados f-/b-), así la vista que
+// se abre primero nunca sale sin nada resaltado. Si empatan, manda la
+// primera zona de la lista, que es la principal del ejercicio.
+function defaultView(block, item) {
+  const regions = block.isRunning
+    ? (AREA_REGIONS[(item && item.area) || 'Accesorio'] || [])
+    : (GROUP_REGIONS[itemGroupKey(block, item)] || []);
+  const back = regions.filter(r => r.startsWith('b-')).length;
+  const front = regions.length - back;
+  if (back !== front) return back > front ? 'espalda' : 'frente';
+  if (regions.length) return regions[0].startsWith('b-') ? 'espalda' : 'frente';
   const backGroups = ['ESPALDA', 'TRICEPS', 'GLUTEOS', 'FEMORALES', 'GEMELOS'];
-  return backGroups.includes(block.key) ? 'espalda' : 'frente';
+  return backGroups.includes(itemGroupKey(block, item)) ? 'espalda' : 'frente';
+}
+
+// Respeta la preferencia del sistema de reducir movimiento. Un GIF no se
+// puede pausar (es un <img>), así que directamente no se carga hasta que lo
+// pidas; la animación SVG sí se puede arrancar en pausa.
+function reduceMovimiento() {
+  try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+  catch (e) { return false; }
 }
 
 function openFicha(blockIdx, itemIdx) {
   state.sheet = { type: 'ficha', blockIdx, itemIdx };
   state.fichaTab = 'tecnica';
-  state.animPlayback = { paused: false, rate: 1 };
+  state.animPlayback = { paused: reduceMovimiento(), rate: 1, verGif: false };
   const block = currentSession.blocks[blockIdx];
-  state.anatomyView = defaultView(block);
+  state.anatomyView = defaultView(block, block.items[itemIdx]);
   renderFicha();
   showSheet('sheetFicha');
 }
@@ -1065,11 +1257,11 @@ function renderFicha() {
   let html = `<div class="grabber"></div><div class="ficha-pad">
     <div class="ficha-head">
       <div style="flex:1;min-width:0">
-        <div class="eyebrow accent">${zone} · ${bloqueTxt}</div>
-        <h1>${item.name}</h1>
-        <div class="ficha-meta">${item.detail} · ${rest} de descanso</div>
+        <div class="eyebrow accent">${esc(zone)} · ${esc(bloqueTxt)}</div>
+        <h1>${esc(item.name)}</h1>
+        <div class="ficha-meta">${esc(item.detail)} · ${rest} de descanso</div>
       </div>
-      <button class="sheet-close" id="fichaClose">✕</button>
+      <button class="sheet-close" id="fichaClose" aria-label="Cerrar la ficha"><span aria-hidden="true">✕</span></button>
     </div>
     <div class="ficha-tabs">
       <button class="ficha-tab ${state.fichaTab === 'tecnica' ? 'active' : ''}" data-t="tecnica">Técnica</button>
@@ -1111,29 +1303,36 @@ function renderFicha() {
 function renderFichaContent(block, item) {
   const el = document.getElementById('fichaContent');
   if (state.fichaTab === 'tecnica') {
-    const pattern = patternFor(item.name, block.key);
+    const grupo = itemGroupKey(block, item);
+    const pattern = patternFor(item.name, grupo);
     const def = pattern && ANIMS[pattern];
-    const gif = gifFor(item.name, block.key);
+    const gif = gifFor(item.name, grupo);
     const dur = state.animPlayback.rate === 0.5 ? 5.2 : 2.6;
     let html = '';
     if (gif) {
       // GIF real del ejercicio, presentado como "plate" editorial (loop, sin controles)
       const chips = [
-        `<span class="mchip mchip-main">${gif.principal}</span>`,
-        ...(gif.sinergistas || []).map(m => `<span class="mchip">${m}</span>`),
+        `<span class="mchip mchip-main">${esc(gif.principal)}</span>`,
+        ...(gif.sinergistas || []).map(m => `<span class="mchip">${esc(m)}</span>`),
       ].join('');
+      const quieto = reduceMovimiento() && !state.animPlayback.verGif;
       html += `<div class="gif-plate">
         <div class="gif-window">
-          <img class="gif-anim" src="${gif.gif}" alt="${item.name}" width="240" height="240"
-               onerror="this.closest('.gif-plate').classList.add('gif-failed')">
-          <div class="gif-fallback">${item.name}</div>
+          ${quieto
+            ? `<div class="gif-quieto">
+                 <span>Tenés activado “reducir movimiento”, así que la demostración no se reproduce sola.</span>
+                 <button type="button" id="verGif">▶ Ver la demostración</button>
+               </div>`
+            : `<img class="gif-anim" src="${esc(gif.gif)}" alt="Demostración de ${esc(item.name)}" width="240" height="240"
+                    onerror="this.closest('.gif-plate').classList.add('gif-failed')">`}
+          <div class="gif-fallback">${esc(item.name)}</div>
         </div>
       </div>
       <div class="mchips">${chips}</div>
       <div class="gif-hairline"></div>
       <div class="gif-foot">
         <span class="gif-attr">© Gym visual — gymvisual.com</span>
-        <span class="gif-ficha">Ficha ${gif.ficha}</span>
+        <span class="gif-ficha">Ficha ${esc(gif.ficha)}</span>
       </div>`;
     } else if (def) {
       html += `<div class="anim-wrap">
@@ -1149,11 +1348,20 @@ function renderFichaContent(block, item) {
     } else {
       html += '<p class="empty-msg">Sin animación para este ejercicio. Mirá el video para la técnica.</p>';
     }
+    // nota del plan (por qué está el ejercicio, meta de examen, qué cuidar)
+    if (item.nota) {
+      html += `<div class="ficha-nota"><span class="fn-ico">📌</span><span>${esc(item.nota)}</span></div>`;
+    }
     if (def) {
       html += '<div class="cues-num">' + def.cues.map((c, i) =>
         `<div class="cue-item"><div class="cue-num">${i + 1}</div><div class="cue-txt">${c}</div></div>`).join('') + '</div>';
     }
     el.innerHTML = html;
+    const vg = document.getElementById('verGif');
+    if (vg) vg.addEventListener('click', () => {
+      state.animPlayback.verGif = true;
+      renderFichaContent(block, item);
+    });
     const svg = el.querySelector('#fichaAnim svg');
     if (svg && state.animPlayback.paused) { try { svg.pauseAnimations(); } catch (e) {} }
     const pb = document.getElementById('acPause');
@@ -1177,8 +1385,9 @@ function renderFichaContent(block, item) {
       muscleName = area;
       transfer = AREA_TRANSFER[area] || 'Trabajo de base para sostener el volumen de carrera.';
     } else {
-      regions = GROUP_REGIONS[block.key] || [];
-      const g = EXERCISE_DB.groups[block.key];
+      const grupo = itemGroupKey(block, item);
+      regions = GROUP_REGIONS[grupo] || [];
+      const g = EXERCISE_DB.groups[grupo];
       muscleName = g ? g.label : block.label;
       transfer = MUSCLE_TRANSFER[muscleName] || 'Aporta al gesto de carrera de forma indirecta.';
     }
@@ -1186,8 +1395,8 @@ function renderFichaContent(block, item) {
       <div class="body-svg">${bodySVGSingle(state.anatomyView, regions)}</div>
       <div class="an-info">
         <div class="eyebrow warn">Zona trabajada</div>
-        <div class="an-muscle">${muscleName}</div>
-        <div class="an-transfer">${transfer}</div>
+        <div class="an-muscle">${esc(muscleName)}</div>
+        <div class="an-transfer">${esc(transfer)}</div>
         <button class="an-toggle" id="anToggle">${state.anatomyView === 'frente' ? 'Ver espalda ›' : 'Ver frente ›'}</button>
       </div>
     </div>`;
@@ -1216,26 +1425,66 @@ function renderFichaContent(block, item) {
 }
 
 // ================= HOJAS: MOSTRAR/OCULTAR =================
+// El display:none se difiere 220 ms para que se vea la transición de salida.
+// Trampa: si en el medio se abre otra hoja (ficha → "⇄ Cambiar ejercicio"),
+// ese timeout pendiente escondía la hoja recién abierta. Por eso cada
+// ocultamiento queda registrado y se cancela al volver a mostrar.
+const SHEET_IDS = ['sheetFicha', 'sheetSwap', 'scrim'];
+const _hideTimers = {};
+function cancelHide(id) {
+  if (_hideTimers[id]) { clearTimeout(_hideTimers[id]); delete _hideTimers[id]; }
+}
+function scheduleHide(id) {
+  cancelHide(id);
+  _hideTimers[id] = setTimeout(() => {
+    document.getElementById(id).hidden = true;
+    delete _hideTimers[id];
+  }, 220);
+}
+
+// El body se fija para que la pantalla de atrás no se desplace bajo la hoja;
+// se guarda la posición porque position:fixed la pierde.
+let _scrollAntesDeHoja = 0;
+function bloquearFondo() {
+  if (document.body.classList.contains('sheet-open')) return;
+  _scrollAntesDeHoja = window.scrollY || 0;
+  document.body.style.top = `-${_scrollAntesDeHoja}px`;
+  document.body.classList.add('sheet-open');
+}
+function liberarFondo() {
+  if (!document.body.classList.contains('sheet-open')) return;
+  document.body.classList.remove('sheet-open');
+  document.body.style.top = '';
+  window.scrollTo(0, _scrollAntesDeHoja);
+}
+
 function showSheet(id) {
-  const scrim = document.getElementById('scrim');
-  scrim.hidden = false;
-  requestAnimationFrame(() => scrim.classList.add('show'));
-  const sheet = document.getElementById(id);
-  sheet.hidden = false;
-  requestAnimationFrame(() => sheet.classList.add('show'));
+  bloquearFondo();
+  [id, 'scrim'].forEach(k => {
+    cancelHide(k);
+    const el = document.getElementById(k);
+    el.hidden = false;
+    requestAnimationFrame(() => el.classList.add('show'));
+  });
+  // el lector de pantalla y el teclado entran en la hoja, no en el fondo
+  requestAnimationFrame(() => {
+    const foco = document.getElementById(id).querySelector('button');
+    if (foco) { try { foco.focus({ preventScroll: true }); } catch (e) {} }
+  });
 }
 function closeSheets() {
-  ['sheetFicha', 'sheetSwap'].forEach(id => {
-    const s = document.getElementById(id);
-    s.classList.remove('show');
-    setTimeout(() => { s.hidden = true; }, 220);
+  SHEET_IDS.forEach(id => {
+    document.getElementById(id).classList.remove('show');
+    scheduleHide(id);
   });
-  const scrim = document.getElementById('scrim');
-  scrim.classList.remove('show');
-  setTimeout(() => { scrim.hidden = true; }, 220);
+  liberarFondo();
   state.sheet = null;
 }
 document.getElementById('scrim').addEventListener('click', closeSheets);
+// una hoja modal tiene que cerrarse con Escape
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && state.sheet) closeSheets();
+});
 
 // ================= HISTORIAL =================
 function raceLabel(r) {
@@ -1323,7 +1572,7 @@ function gymCard(it) {
   const fecha = `${WEEKDAYS[d.getDay()]} ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
   let done = 0, tot = 0;
   s.blocks.forEach(b => b.items.forEach(i => { done += seriesMarked(i); tot += seriesTarget(i); }));
-  const groups = s.blocks.map(b => `${b.emoji} ${EXERCISE_DB.groups[b.key] ? EXERCISE_DB.groups[b.key].label : b.label}`).join(' · ');
+  const groups = s.blocks.map(b => `${esc(b.emoji)} ${esc(EXERCISE_DB.groups[b.key] ? EXERCISE_DB.groups[b.key].label : b.label)}`).join(' · ');
   const stateCls = done >= tot ? 'full' : (done > 0 ? 'partial' : 'warnc');
   const id = 'gym-' + it.idx + '-' + s.date;
   const open = state.expandedSessionId === id;
@@ -1332,13 +1581,18 @@ function gymCard(it) {
   s.blocks.forEach(b => {
     const artCls = b.isRunning ? ' art' : '';
     const gLabel = EXERCISE_DB.groups[b.key] ? EXERCISE_DB.groups[b.key].label : b.label;
-    detail += `<div class="grp-sub${artCls}">${b.emoji} ${gLabel}</div>`;
+    detail += `<div class="grp-sub${artCls}">${esc(b.emoji)} ${esc(gLabel)}</div>`;
     b.items.forEach(i => {
       if (i.replacedBy) return; // se muestra junto al reemplazo
       const t = seriesTarget(i), dd = seriesMarked(i);
       const ico = dd >= t ? '✅' : (dd > 0 ? '🔸' : '⬜');
-      let name = i.name;
-      if (i.fromSwap) name = `<span class="old-name">${i.fromSwap}</span> <span class="swap-arrow">→</span> ${i.name}`;
+      let name = esc(i.name);
+      if (i.fromSwap) name = `<span class="old-name">${esc(i.fromSwap)}</span> <span class="swap-arrow">→</span> ${esc(i.name)}`;
+      // si el cambio se llevó el ejercicio a otro músculo, dejarlo asentado
+      const gi = itemGroupKey(b, i);
+      if (!b.isRunning && gi !== b.key && EXERCISE_DB.groups[gi]) {
+        name += ` <span class="ex-cross">(${esc(EXERCISE_DB.groups[gi].label)})</span>`;
+      }
       // buscar el original reemplazado para el contador combinado
       const orig = b.items.find(x => x.replacedBy === i.name);
       const cnt = orig ? `${seriesMarked(orig)} + ${dd}` : `${dd}/${t}`;
@@ -1346,17 +1600,18 @@ function gymCard(it) {
     });
   });
 
-  return `<div class="hist-card ${open ? 'open' : ''}" data-id="${id}">
-    <div class="hc-top">
+  return `<div class="hist-card ${open ? 'open' : ''}" data-id="${esc(id)}">
+    <div class="hc-top" role="button" tabindex="0" aria-expanded="${open}"
+         aria-label="${esc(fecha)}, ${done} de ${tot} series. Ver el detalle">
       <div class="hc-main">
-        <div class="hc-date">${fecha}</div>
+        <div class="hc-date">${esc(fecha)}</div>
         <div class="hc-groups">${groups}</div>
       </div>
       <div class="hc-right">
         <div class="hc-series ${stateCls}">${done} / ${tot}</div>
         <div class="hc-serieslbl">series</div>
       </div>
-      <div class="hc-chev">${open ? '⌄' : '›'}</div>
+      <div class="hc-chev" aria-hidden="true">${open ? '⌄' : '›'}</div>
     </div>
     <div class="hc-detail">${detail}
       <button class="del-inline" data-del="gym" data-idx="${it.idx}">Eliminar sesión</button>
@@ -1374,8 +1629,8 @@ function raceCard(it) {
   return `<div class="hist-card race">
     <div class="hc-top">
       <div class="hc-main">
-        <div class="hc-date">${fecha} · 🏃 ${raceLabel(r)}</div>
-        <div class="hc-groups">${km.toFixed(1).replace('.', ',')} km · ${fmtSegundos(r.moving_time)}${pace ? ` · ${fmtSegundos(pace)}/km` : ''}${r.average_heartrate ? ` · ${r.average_heartrate} lpm` : ''}</div>
+        <div class="hc-date">${esc(fecha)} · 🏃 ${esc(raceLabel(r))}</div>
+        <div class="hc-groups">${esc(km.toFixed(1).replace('.', ','))} km · ${esc(fmtDuracion(r.moving_time))}${pace ? ` · ${esc(fmtSegundos(pace))}/km` : ''}${r.average_heartrate ? ` · ${esc(r.average_heartrate)} lpm` : ''}</div>
       </div>
       <div class="hc-right">
         <div class="hc-series warnc">${r.trainer ? 'cinta' : 'calle'}</div>
@@ -1396,10 +1651,15 @@ function bindHistoryFilters() {
 }
 function bindHistoryCards() {
   document.querySelectorAll('#screen-historial .hist-card[data-id]').forEach(card => {
-    card.querySelector('.hc-top').addEventListener('click', () => {
+    const top = card.querySelector('.hc-top');
+    const alternar = () => {
       const id = card.dataset.id;
       state.expandedSessionId = state.expandedSessionId === id ? null : id;
       renderHistory();
+    };
+    top.addEventListener('click', alternar);
+    top.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); alternar(); }
     });
     const del = card.querySelector('[data-del]');
     if (del) del.addEventListener('click', (e) => {
@@ -1449,9 +1709,15 @@ function renderProgreso() {
         });
         return;
       }
-      seriesGrupo[block.key] = (seriesGrupo[block.key] || 0) + hechas;
-      const b = bloqueDeGrupo(block.key);
-      if (b) seriesBloque[b.id] += hechas;
+      // por ítem y no por bloque: un ejercicio cambiado a otro músculo tiene
+      // que sumar donde corresponde, no donde arrancó el bloque
+      block.items.forEach(i => {
+        const m = seriesMarked(i); if (!m) return;
+        const k = itemGroupKey(block, i);
+        seriesGrupo[k] = (seriesGrupo[k] || 0) + m;
+        const b = bloqueDeGrupo(k);
+        if (b) seriesBloque[b.id] += m;
+      });
     });
   });
 
@@ -1473,7 +1739,7 @@ function renderProgreso() {
       ? '¡Buen equilibrio! Le estás dando prioridad a la base articular para correr.'
       : 'Todavía es bajo. Apuntá a que al menos ~30% de tu volumen sea trabajo articular y de estabilidad.'}</p>
     ${chips.length ? `<div class="zone-chips">${chips.map(([a, n]) =>
-      `<span class="zone-chip">${a} ${Math.round((n / areaTotal) * 100)}%</span>`).join('')}</div>` : ''}
+      `<span class="zone-chip">${esc(a)} ${Math.round((n / areaTotal) * 100)}%</span>`).join('')}</div>` : ''}
   </div>`;
 
   // ranking de bloques por urgencia
@@ -1545,9 +1811,10 @@ function familiaDeSerie(block, item) {
     if (/core|cadera|gl[uú]teo/i.test(area)) return 'core';
     return 'articular';
   }
-  if (LOWER.includes(block.key)) return 'inferior';
-  if (UPPER.includes(block.key)) return 'superior';
-  if (block.key === 'ABDOMEN') return 'core';
+  const k = itemGroupKey(block, item);
+  if (LOWER.includes(k)) return 'inferior';
+  if (UPPER.includes(k)) return 'superior';
+  if (k === 'ABDOMEN') return 'core';
   return 'superior';
 }
 
@@ -1620,7 +1887,7 @@ function renderAjustes() {
             </div>
           </label>
           <label>Distancia (km)<input type="number" id="runKm" step="0.1" min="0" placeholder="3.2"></label>
-          <label>Tiempo (mm:ss)<input type="text" id="runTime" placeholder="14:40" inputmode="numeric"></label>
+          <label>Tiempo (mm:ss o h:mm:ss)<input type="text" id="runTime" placeholder="14:40" inputmode="text"></label>
           <label class="full">FC media (opcional)<input type="number" id="runHr" min="0" placeholder="155"></label>
         </div>
         <div class="pace-row"><span class="pl">Ritmo</span><span class="pv" id="paceVal">—</span></div>
@@ -1658,11 +1925,17 @@ function renderAjustes() {
   document.getElementById('btnImport').addEventListener('click', () => document.getElementById('importFile').click());
   document.getElementById('importFile').addEventListener('change', importBackup);
 
-  // texto de último respaldo
-  const lb = store.lastBackup;
+  actualizarTextoRespaldo();
+}
+
+// Se actualiza solo este párrafo en vez de re-renderizar Ajustes entero:
+// exportar en medio de cargar una carrera te borraba el formulario.
+function actualizarTextoRespaldo() {
   const txt = document.getElementById('backupTxt');
+  if (!txt) return;
+  const lb = store.lastBackup;
   if (lb) {
-    const dias = diasEntre(soloFecha(lb), h);
+    const dias = diasEntre(soloFecha(lb), hoy());
     const cuando = dias === 0 ? 'hoy' : dias === 1 ? 'ayer' : `hace ${dias} días`;
     txt.innerHTML = `Tus datos viven en este dispositivo. Último respaldo <strong>${cuando}</strong>. Exportá cada tanto para no perder el historial.`;
   } else {
@@ -1697,10 +1970,23 @@ function renderRunDays() {
   });
 }
 
+// Acepta mm:ss (14:40) y también h:mm:ss (1:05:30), que hacía falta para
+// las salidas largas: antes cualquier tiempo de más de una hora se rechazaba.
 function parseTiempoASegundos(txt) {
-  const m = String(txt || '').trim().match(/^(\d+):([0-5]?\d)$/);
-  if (!m) return null;
-  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+  const s = String(txt || '').trim();
+  let m = s.match(/^(\d+):([0-5]?\d):([0-5]?\d)$/);
+  if (m) return parseInt(m[1], 10) * 3600 + parseInt(m[2], 10) * 60 + parseInt(m[3], 10);
+  m = s.match(/^(\d+):([0-5]?\d)$/);
+  if (m) return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+  return null;
+}
+
+// Duración de una carrera: pasa a h:mm:ss cuando supera la hora, así una
+// salida de 1 h 12 no se muestra como "72:30".
+function fmtDuracion(s) {
+  if (s < 3600) return fmtSegundos(s);
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = Math.round(s % 60);
+  return `${h}:${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
 }
 function updatePace() {
   const km = parseFloat(document.getElementById('runKm').value);
@@ -1716,7 +2002,7 @@ function guardarCarrera() {
   const hr = parseInt(document.getElementById('runHr').value, 10);
   if (!fecha) { alert('Poné la fecha de la carrera.'); return; }
   if (!km || km <= 0) { alert('Poné la distancia en km.'); return; }
-  if (seg === null) { alert('El tiempo va en formato mm:ss — por ejemplo 14:40.'); return; }
+  if (seg === null) { alert('El tiempo va en formato mm:ss (14:40) o h:mm:ss (1:05:30).'); return; }
   const runs = store.runs;
   runs.unshift({
     start_date: new Date(fecha + 'T12:00:00').toISOString(),
@@ -1750,8 +2036,8 @@ function renderRuns() {
     item.className = 'run-item';
     item.innerHTML = `
       <div>
-        <div class="run-top">${fecha} · ${km.toFixed(1).replace('.', ',')} km · ${fmtSegundos(r.moving_time)}</div>
-        <div class="run-meta">${raceLabel(r)} · ${r.trainer ? 'cinta' : 'calle'}${pace ? ` · ${fmtSegundos(pace)}/km` : ''}${r.average_heartrate ? ` · ${r.average_heartrate} lpm` : ''}</div>
+        <div class="run-top">${esc(fecha)} · ${esc(km.toFixed(1).replace('.', ','))} km · ${esc(fmtDuracion(r.moving_time))}</div>
+        <div class="run-meta">${esc(raceLabel(r))} · ${r.trainer ? 'cinta' : 'calle'}${pace ? ` · ${esc(fmtSegundos(pace))}/km` : ''}${r.average_heartrate ? ` · ${esc(r.average_heartrate)} lpm` : ''}</div>
       </div>
       <button class="del-inline" data-i="${idx}">Eliminar</button>`;
     item.querySelector('.del-inline').addEventListener('click', () => {
@@ -1769,42 +2055,187 @@ function exportBackup() {
     runDays: store.runDays, runs: store.runs,
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
+  a.href = url;
   a.download = 'apprutina-respaldo-' + new Date().toISOString().slice(0, 10) + '.json';
+  // Firefox no dispara la descarga si el ancla no está en el documento, y
+  // revocar la URL en el mismo tick la cancela en varios navegadores.
+  a.style.display = 'none';
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(a.href);
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 60000);
   store.lastBackup = new Date().toISOString();
-  renderAjustes();
+  actualizarTextoRespaldo();
 }
+// --- saneo del respaldo antes de importarlo ---
+// Antes alcanzaba con que `history` fuera un array: una sesión sin `blocks`
+// entraba igual, quedaba guardada en localStorage y rompía Historial y
+// Progreso para siempre (el error saltaba recién al renderizar). Ahora cada
+// registro se normaliza a la forma que el resto de la app da por sentada, y
+// lo que no se puede arreglar se descarta avisando cuántos fueron.
+function _num(v, def) { const n = Number(v); return Number.isFinite(n) ? n : def; }
+function _txt(v) { return typeof v === 'string' ? v : (v == null ? '' : String(v)); }
+
+function sanearItem(raw) {
+  if (!esObjeto(raw)) return null;
+  const name = _txt(raw.name).trim();
+  if (!name) return null;
+  const item = {
+    name,
+    detail: _txt(raw.detail),
+    equipment: _txt(raw.equipment),
+    series: Math.max(0, Math.round(_num(raw.series, 0))),
+    setsDone: Math.max(0, Math.round(_num(raw.setsDone, 0))),
+    done: raw.done === true,
+  };
+  ['area', 'nota', 'group', 'fromSwap', 'replacedBy'].forEach(k => {
+    if (raw[k]) item[k] = _txt(raw[k]);
+  });
+  return item;
+}
+
+function sanearBloque(raw) {
+  if (!esObjeto(raw) || !Array.isArray(raw.items)) return null;
+  const items = raw.items.map(sanearItem).filter(Boolean);
+  if (!items.length) return null;
+  return {
+    key: _txt(raw.key) || 'OTRO',
+    label: _txt(raw.label) || 'Sin grupo',
+    emoji: _txt(raw.emoji) || '•',
+    isRunning: raw.isRunning === true,
+    isWarmup: raw.isWarmup === true,
+    isFixed: raw.isFixed === true,
+    items,
+  };
+}
+
+function sanearSesion(raw) {
+  if (!esObjeto(raw) || !Array.isArray(raw.blocks)) return null;
+  const fecha = new Date(raw.date);
+  if (isNaN(fecha.getTime())) return null;
+  const blocks = raw.blocks.map(sanearBloque).filter(Boolean);
+  if (!blocks.length) return null;
+  return {
+    date: fecha.toISOString(),
+    weekday: _txt(raw.weekday) || WEEKDAYS[fecha.getDay()],
+    bloqueId: BLOQUES.some(b => b.id === raw.bloqueId) ? raw.bloqueId : null,
+    bloqueNombre: _txt(raw.bloqueNombre) || null,
+    blocks,
+  };
+}
+
+function sanearCarrera(raw) {
+  if (!esObjeto(raw)) return null;
+  const fecha = new Date(raw.start_date);
+  if (isNaN(fecha.getTime())) return null;
+  const distancia = _num(raw.distance, 0), tiempo = _num(raw.moving_time, 0);
+  if (distancia <= 0 || tiempo <= 0) return null;   // si no, la tarjeta muestra NaN
+  const fc = _num(raw.average_heartrate, 0);
+  return {
+    start_date: fecha.toISOString(),
+    type: 'Run',
+    trainer: raw.trainer === true,
+    workout: NOMBRE_TIPO[raw.workout] ? raw.workout : 'suave',
+    distance: Math.round(distancia),
+    moving_time: Math.round(tiempo),
+    average_heartrate: fc > 0 ? Math.round(fc) : null,
+    source: _txt(raw.source) || 'manual',
+  };
+}
+
+function sanearRotacion(raw) {
+  const out = {};
+  Object.keys(EXERCISE_DB.groups).forEach(k => {
+    const n = Math.round(_num(esObjeto(raw) ? raw[k] : 0, 0));
+    out[k] = (n >= 0 && n < 4) ? n : 0;   // el slot indexa variants[0..3]
+  });
+  return out;
+}
+
+function sanearPlan(raw) {
+  const p = esObjeto(raw) ? raw : {};
+  const ultimo = Math.round(_num(p.ultimoBloque, 0));
+  return {
+    ultimoBloque: BLOQUES.some(b => b.id === ultimo) ? ultimo : 0,
+    sesiones: Math.max(0, Math.round(_num(p.sesiones, 0))),
+  };
+}
+
+function sanearRunDays(raw) {
+  const out = {};
+  if (!esObjeto(raw)) return out;
+  for (let d = 0; d < 7; d++) {
+    if (raw[d] === 'suave' || raw[d] === 'duro') out[d] = raw[d];
+  }
+  return out;
+}
+
 function importBackup(ev) {
   const file = ev.target.files[0];
+  ev.target.value = '';               // permite reimportar el mismo archivo
   if (!file) return;
   const reader = new FileReader();
+  reader.onerror = () => alert('No se pudo leer el archivo.');
   reader.onload = () => {
-    try {
-      const data = JSON.parse(reader.result);
-      if (data.app !== 'AppRutina' || !Array.isArray(data.history)) { alert('El archivo no parece un respaldo válido de AppRutina.'); return; }
-      if (!confirm(`Importar ${data.history.length} entrenamientos. Esto reemplaza el historial actual. ¿Continuar?`)) return;
-      store.history = data.history;
-      if (data.rotation) store.rotation = data.rotation;
-      if (data.plan) store.plan = data.plan;
-      if (data.runDays) store.runDays = data.runDays;
-      if (data.runs) store.runs = data.runs;
-      renderAjustes();
-      alert('¡Respaldo importado!');
-    } catch { alert('No se pudo leer el archivo.'); }
+    let data;
+    try { data = JSON.parse(reader.result); }
+    catch { alert('No se pudo leer el archivo: no es un JSON válido.'); return; }
+
+    if (!esObjeto(data) || data.app !== 'AppRutina' || !Array.isArray(data.history)) {
+      alert('El archivo no parece un respaldo válido de AppRutina.');
+      return;
+    }
+
+    const history = data.history.map(sanearSesion).filter(Boolean);
+    const runsCrudas = Array.isArray(data.runs) ? data.runs : [];
+    const runs = runsCrudas.map(sanearCarrera).filter(Boolean);
+    const descartados = (data.history.length - history.length) + (runsCrudas.length - runs.length);
+
+    if (!history.length && !runs.length) {
+      alert('El respaldo no tiene ninguna sesión ni carrera que se pueda leer.');
+      return;
+    }
+    // más nuevo primero: el resto de la app da por sentado ese orden
+    history.sort((a, b) => new Date(b.date) - new Date(a.date));
+    runs.sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
+
+    let aviso = `Importar ${history.length} entrenamiento${history.length !== 1 ? 's' : ''}`;
+    aviso += ` y ${runs.length} carrera${runs.length !== 1 ? 's' : ''}.`;
+    if (descartados) aviso += `\n\nSe descartan ${descartados} registro${descartados !== 1 ? 's' : ''} dañado${descartados !== 1 ? 's' : ''} o incompleto${descartados !== 1 ? 's' : ''}.`;
+    aviso += '\n\nEsto reemplaza el historial actual. ¿Continuar?';
+    if (!confirm(aviso)) return;
+
+    store.history = history;
+    if (Array.isArray(data.runs)) store.runs = runs;
+    if (data.rotation) store.rotation = sanearRotacion(data.rotation);
+    if (data.plan) store.plan = sanearPlan(data.plan);
+    if (data.runDays) store.runDays = sanearRunDays(data.runDays);
+    renderAjustes();
+    alert('¡Respaldo importado!');
   };
   reader.readAsText(file);
-  ev.target.value = '';
 }
 
 // ================= INIT =================
+// La sesión en curso es la otra puerta de entrada de datos rotos: se lee antes
+// del primer render, así que si le faltan los bloques la app arranca en negro.
+// Mejor descartarla y volver a la pantalla Hoy que quedar sin app.
 const savedSession = store.current;
-if (savedSession) {
+if (savedSession && Array.isArray(savedSession.blocks) && savedSession.blocks.length
+    && savedSession.blocks.every(b => b && Array.isArray(b.items))) {
   currentSession = savedSession;
   if (!currentSession.startedAt) currentSession.startedAt = Date.now();
+  // sesión de una versión anterior: sin esto, "Terminar y guardar" tiraba
+  if (!currentSession._pendingRotation) {
+    currentSession._pendingRotation = {
+      checkedGroups: currentSession.blocks.filter(b => !b.isRunning).map(b => b.key),
+    };
+  }
   selectedWeekday = savedSession.weekday || selectedWeekday;
+} else if (savedSession) {
+  console.warn('AppRutina: la sesión en curso guardada estaba incompleta; se descarta.');
+  store.current = null;
 }
 renderHoy();
 

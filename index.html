@@ -2,7 +2,10 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<!-- sin maximum-scale ni user-scalable: bloquear el zoom con pinza es una
+     barrera de accesibilidad y ya no hace falta para evitar el zoom al
+     enfocar un input (alcanza con font-size >= 16px en los campos) -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0f1420">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -61,21 +64,21 @@
 </main>
 
 <!-- BARRA DE TABS INFERIOR -->
-<nav class="bottom-tabs" id="bottomTabs">
-  <button class="tab-item active" data-tab="hoy"><span class="tab-ico">🏋️</span><span class="tab-label">Hoy</span></button>
-  <button class="tab-item" data-tab="historial"><span class="tab-ico">🗓</span><span class="tab-label">Historial</span></button>
-  <button class="tab-item" data-tab="progreso"><span class="tab-ico">📈</span><span class="tab-label">Progreso</span></button>
-  <button class="tab-item" data-tab="ajustes"><span class="tab-ico">⚙️</span><span class="tab-label">Ajustes</span></button>
+<nav class="bottom-tabs" id="bottomTabs" aria-label="Secciones">
+  <button class="tab-item active" data-tab="hoy" aria-current="page"><span class="tab-ico" aria-hidden="true">🏋️</span><span class="tab-label">Hoy</span></button>
+  <button class="tab-item" data-tab="historial"><span class="tab-ico" aria-hidden="true">🗓</span><span class="tab-label">Historial</span></button>
+  <button class="tab-item" data-tab="progreso"><span class="tab-ico" aria-hidden="true">📈</span><span class="tab-label">Progreso</span></button>
+  <button class="tab-item" data-tab="ajustes"><span class="tab-ico" aria-hidden="true">⚙️</span><span class="tab-label">Ajustes</span></button>
 </nav>
 
 <!-- FICHA DE EJERCICIO (hoja a pantalla completa) -->
-<div id="sheetFicha" class="sheet sheet-full" hidden></div>
+<div id="sheetFicha" class="sheet sheet-full" role="dialog" aria-modal="true" aria-label="Ficha del ejercicio" hidden></div>
 
 <!-- CAMBIAR EJERCICIO (hoja parcial 66%) -->
-<div id="sheetSwap" class="sheet sheet-partial" hidden></div>
+<div id="sheetSwap" class="sheet sheet-partial" role="dialog" aria-modal="true" aria-label="Cambiar ejercicio" hidden></div>
 
 <!-- VELO -->
-<div id="scrim" class="scrim" hidden></div>
+<div id="scrim" class="scrim" aria-hidden="true" hidden></div>
 
 <script src="data.js"></script>
 <script src="anims.js"></script>

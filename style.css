@@ -44,6 +44,24 @@ body {
 
 button { font-family: inherit; touch-action: manipulation; }
 
+/* Con una hoja abierta la pantalla de atrás se desplazaba. En iOS un
+   overflow:hidden sobre el body no alcanza, hace falta fijarlo; app.js
+   guarda y restaura la posición del scroll al abrir y cerrar. */
+body.sheet-open {
+  position: fixed;
+  left: 0;
+  right: 0;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* foco visible para quien navega con teclado */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
 h1, h2, h3 { text-wrap: pretty; }
 
 #app {
@@ -521,7 +539,9 @@ h1, h2, h3 { text-wrap: pretty; }
   border-radius: 8px;
   padding: 11px 10px;
   color: var(--text);
-  font-size: 0.95rem;
+  /* 16px justos: por debajo de eso iOS hace zoom solo al enfocar el campo,
+     que es lo que antes se tapaba con user-scalable=no */
+  font-size: 16px;
   font-family: inherit;
   width: 100%;
   box-sizing: border-box;
@@ -782,6 +802,24 @@ h1, h2, h3 { text-wrap: pretty; }
 }
 .cue-txt { font-size: 0.9rem; line-height: 1.45; }
 
+/* músculo real de un ejercicio cambiado a otro grupo, en el historial */
+.ex-cross { color: var(--warn); font-size: 0.78rem; }
+
+/* nota del plan dentro de la ficha (meta de examen, qué cuidar) */
+.ficha-nota {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  color: var(--warn-text);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+.ficha-nota .fn-ico { flex-shrink: 0; }
+
 /* ===== Plate del GIF real (demostración del ejercicio) ===== */
 .gif-plate {
   position: relative;
@@ -857,8 +895,41 @@ h1, h2, h3 { text-wrap: pretty; }
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: none; }
 }
+/* La regla anterior era `.gif-anim { animation: none }`, que no hacía nada:
+   .gif-anim es un <img> y un GIF no se puede frenar desde CSS. El GIF lo
+   maneja app.js (no lo carga hasta que lo pedís); acá se apagan las
+   animaciones y transiciones que sí dependen de CSS. */
 @media (prefers-reduced-motion: reduce) {
-  .gif-anim { animation: none; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* marcador de posición del GIF cuando se pidió menos movimiento */
+.gif-quieto {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 240px;
+  padding: 16px;
+  text-align: center;
+  color: #4a4a4a;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+.gif-quieto button {
+  border: 1px solid #9a9a9a;
+  background: #f7f7f7;
+  color: #2b2b2b;
+  border-radius: 999px;
+  padding: 9px 16px;
+  font-size: 0.85rem;
+  cursor: pointer;
 }
 
 .anatomy {

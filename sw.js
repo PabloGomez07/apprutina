@@ -1,4 +1,6 @@
-const CACHE = 'apprutina-v12';
+// Con el shell en network-first ya no hace falta subir esto en cada deploy:
+// sirve para purgar de una las copias viejas cuando cambia la lista de assets.
+const CACHE = 'apprutina-v17';
 const ASSETS = [
   './',
   './index.html',
@@ -100,8 +102,23 @@ const ASSETS = [
   './videos/3561-GibBPPg.gif',
 ];
 
+// El shell: si algo de esto no se puede cachear, no hay app offline.
+const SHELL = ASSETS.filter(u => !u.startsWith('./videos/'));
+
+// addAll es atómico: un solo GIF con 404 tiraba abajo TODA la instalación y la
+// app se quedaba sin offline en silencio. Ahora se cachea de a uno: un GIF que
+// falte es una ficha sin demostración, no una app rota. Si lo que falla es el
+// shell sí se aborta, para que siga activo el service worker anterior.
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  e.waitUntil((async () => {
+    const c = await caches.open(CACHE);
+    const res = await Promise.allSettled(ASSETS.map(u => c.add(u)));
+    const fallidos = ASSETS.filter((_, i) => res[i].status === 'rejected');
+    if (fallidos.length) console.warn('[SW] sin cachear:', fallidos);
+    const criticos = fallidos.filter(u => SHELL.includes(u));
+    if (criticos.length) throw new Error('[SW] faltan archivos del shell: ' + criticos.join(', '));
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', (e) => {
@@ -112,10 +129,68 @@ self.addEventListener('activate', (e) => {
   );
 });
 
-// cache-first: the app is fully static, everything works offline
+// Los GIFs y los iconos no cambian nunca: cache-first, instantáneo.
+const INMUTABLE = /\.(gif|png|jpe?g|webp|svg|ico)$/i;
+
+// Antes TODO era cache-first, incluido el HTML y el JS: una versión nueva no
+// llegaba nunca salvo que uno se acordara de subir a mano el número de CACHE.
+// Ahora el shell va a la red primero y guarda la copia nueva; si la red no
+// contesta en TIMEOUT_RED (gimnasio sin señal) sale de la cache, así que el
+// arranque offline sigue siendo inmediato.
+const TIMEOUT_RED = 2500;
+
+function conTimeout(promesa, ms) {
+  return new Promise((resolve, reject) => {
+    const id = setTimeout(() => reject(new Error('timeout')), ms);
+    promesa.then(v => { clearTimeout(id); resolve(v); },
+                 e => { clearTimeout(id); reject(e); });
+  });
+}
+
+async function deLaCache(req) {
+  const hit = await caches.match(req, { ignoreSearch: true });
+  if (hit) return hit;
+  if (req.mode === 'navigate') {
+    const shell = await caches.match('./index.html');
+    if (shell) return shell;
+  }
+  return null;
+}
+
 self.addEventListener('fetch', (e) => {
-  if (e.request.method !== 'GET') return;
-  e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request))
-  );
+  const req = e.request;
+  if (req.method !== 'GET') return;
+
+  let url;
+  try { url = new URL(req.url); } catch (err) { return; }
+  if (url.origin !== self.location.origin) return;   // no tocamos pedidos externos
+
+  if (INMUTABLE.test(url.pathname)) {
+    e.respondWith(caches.match(req).then(hit => hit || fetch(req)));
+    return;
+  }
+
+  e.respondWith((async () => {
+    try {
+      // 'no-store' es lo que hace que esto sirva de verdad: sin eso el fetch
+      // del service worker sale de la caché HTTP del navegador y una versión
+      // nueva podía seguir sin llegar. Se pide por URL y no con el Request
+      // original porque a los de modo 'navigate' no se les puede pasar init.
+      const res = await conTimeout(
+        fetch(req.url, { cache: 'no-store', credentials: 'same-origin' }), TIMEOUT_RED);
+      if (res && res.ok) {
+        const copia = res.clone();
+        caches.open(CACHE).then(c => c.put(req, copia)).catch(() => {});
+        return res;
+      }
+      // respuesta de error (host mal configurado): mejor la copia buena
+      return (await deLaCache(req)) || res;
+    } catch (err) {
+      const hit = await deLaCache(req);
+      if (hit) return hit;
+      return new Response('Sin conexión y sin copia guardada.', {
+        status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      });
+    }
+  })());
 });
